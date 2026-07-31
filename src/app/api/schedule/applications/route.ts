@@ -6,6 +6,7 @@ import { generateApplicationToken, generateId } from "@/lib/schedule/token";
 
 const RAW_TYPES = [
   "special_invite", "document_request", "briefing", "school_course_briefing", "open_class", "trial_day",
+  "week_intensive_trial",
 ] as const;
 const GRADES = ["高1", "高2", "高3"] as const;
 const RELATIONS = ["self", "parent", "other"] as const;

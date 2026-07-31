@@ -58,6 +58,7 @@ const PATTERN_BY_RAW_TYPE: Record<ApplicationRawType, ApplicationPattern> = {
   special_invite: "C",
   document_request: "C",
   trial_day: "C",
+  week_intensive_trial: "C",
   briefing: "B",
   school_course_briefing: "B",
   open_class: "A",
@@ -70,6 +71,7 @@ export const RAW_TYPE_LABELS: Record<ApplicationRawType, string> = {
   school_course_briefing: "高校対応別指導コース個別説明会",
   open_class: "特別公開授業",
   trial_day: "1日体験",
+  week_intensive_trial: "1週間集中体験",
 };
 
 export function patternForRawType(raw: ApplicationRawType): ApplicationPattern {

@@ -1,19 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { applicationFromRow } from "@/lib/schedule/rows";
-import { SUBJECT_LABELS } from "@/lib/booking/logic";
+import { SUBJECT_LABELS, RAW_TYPE_LABELS } from "@/lib/booking/logic";
 import type { SubjectKey } from "@/lib/types";
 import { LogoutButton } from "./LogoutButton";
 
 export const dynamic = "force-dynamic";
-
-const RAW_TYPE_LABELS: Record<string, string> = {
-  special_invite: "特別招待講習",
-  document_request: "資料請求",
-  briefing: "個別説明会",
-  school_course_briefing: "高校対応別指導コース個別説明会",
-  open_class: "特別公開授業",
-  trial_day: "1日体験",
-};
 
 const HEARING_LABELS = [
   "①申し込みのきっかけ・理由",

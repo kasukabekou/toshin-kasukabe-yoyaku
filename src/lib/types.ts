@@ -12,7 +12,8 @@ export type ApplicationRawType =
   | "briefing" // 個別説明会
   | "school_course_briefing" // 高校対応別指導コース個別説明会
   | "open_class" // 特別公開授業
-  | "trial_day"; // 1日体験
+  | "trial_day" // 1日体験
+  | "week_intensive_trial"; // 1週間集中体験
 
 export type ApplicationPattern = "A" | "B" | "C";
 export type GradeGroup = "g3" | "g12";
