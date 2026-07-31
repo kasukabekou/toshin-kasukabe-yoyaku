@@ -56,8 +56,22 @@ export function StepConfirm({
           hearing: state.hearing,
           selectedSubjects: requiresTest(application.pattern) ? state.selectedSubjects : [],
           testSegments: [
-            ...(testPlan.day1 ? [{ startAt: testPlan.day1.startAt.toISOString(), endAt: testPlan.day1.endAt.toISOString(), dayIndex: 0 }] : []),
-            ...(testPlan.day2 ? [{ startAt: testPlan.day2.startAt.toISOString(), endAt: testPlan.day2.endAt.toISOString(), dayIndex: 1 }] : []),
+            ...(testPlan.day1
+              ? [{
+                  startAt: testPlan.day1.startAt.toISOString(),
+                  endAt: testPlan.day1.endAt.toISOString(),
+                  dayIndex: 0,
+                  subjects: state.selectedSubjects.filter((k) => !testPlan.overflowAfterDay1.includes(k)),
+                }]
+              : []),
+            ...(testPlan.day2
+              ? [{
+                  startAt: testPlan.day2.startAt.toISOString(),
+                  endAt: testPlan.day2.endAt.toISOString(),
+                  dayIndex: 1,
+                  subjects: testPlan.overflowAfterDay1,
+                }]
+              : []),
           ],
           interviewSlot: chosenInterviewSlot
             ? { startAt: chosenInterviewSlot.startAt.toISOString(), endAt: chosenInterviewSlot.endAt.toISOString() }

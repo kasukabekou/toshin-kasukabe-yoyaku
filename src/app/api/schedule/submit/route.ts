@@ -5,7 +5,8 @@ import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendarClient";
 import { isSlotStillFree, insertInterviewEvent, isTestCalendarConfigured, insertTestEvent } from "@/lib/google/calendarEvents";
 import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
-import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
+import { RAW_TYPE_LABELS, CALENDAR_SUBJECT_LABELS, testTypeLabelForGradeGroup } from "@/lib/booking/logic";
+import type { SubjectKey } from "@/lib/types";
 
 const hearingSchema = z.object({
   item1: z.string().max(2000), item2: z.string().max(2000), item3: z.string().max(2000),
@@ -18,7 +19,12 @@ const submitSchema = z.object({
   hearing: hearingSchema,
   selectedSubjects: z.array(z.string().max(64)).max(20).default([]),
   testSegments: z
-    .array(z.object({ startAt: z.string(), endAt: z.string(), dayIndex: z.number().int().min(0) }))
+    .array(z.object({
+      startAt: z.string(),
+      endAt: z.string(),
+      dayIndex: z.number().int().min(0),
+      subjects: z.array(z.string().max(64)).max(20).default([]),
+    }))
     .max(30)
     .default([]),
   interviewSlot: z.object({ startAt: z.string(), endAt: z.string() }).nullable(),
@@ -61,12 +67,16 @@ export async function POST(request: NextRequest) {
   const rawTypeLabel = RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType;
   const testGoogleEventIds: (string | null)[] = [];
   if (testSegments.length > 0 && isTestCalendarConfigured()) {
+    const gradeGroup = resolved.application.gradeGroup ?? "g3";
+    const gradeNum = resolved.application.grade.replace("高", "");
+    const testTypeLabel = testTypeLabelForGradeGroup(gradeGroup);
     for (const seg of testSegments) {
+      const subjectNames = seg.subjects.map((k) => CALENDAR_SUBJECT_LABELS[k as SubjectKey] ?? k).join("・");
       testGoogleEventIds.push(
         await insertTestEvent({
           startISO: seg.startAt,
           endISO: seg.endAt,
-          applicantName: resolved.application.name,
+          summary: `${resolved.application.name}（${resolved.application.school}${gradeNum}年）学診（${testTypeLabel}　${subjectNames}）`,
           applicantPhone: resolved.application.phone,
           rawTypeLabel,
           dayIndex: seg.dayIndex,

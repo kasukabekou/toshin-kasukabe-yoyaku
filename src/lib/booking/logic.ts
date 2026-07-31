@@ -121,6 +121,18 @@ export const SUBJECT_LABELS: Record<SubjectKey, string> = {
   kokugo_g12: "国語", math_g12: "数学", eigo_g12: "英語",
 };
 
+// カレンダー登録用の科目略称（UI表示用のSUBJECT_LABELSとは書式が異なるため別管理）
+export const CALENDAR_SUBJECT_LABELS: Record<SubjectKey, string> = {
+  kokugo: "国語", math1a: "数学①", math2bc: "数学②", eigo_reading: "英語",
+  physics: "物理", chemistry: "化学", biology: "生物", earth_science: "地学",
+  japanese_history: "日本史", world_history: "世界史", geography: "地理", ethics_politics: "倫理政経",
+  kokugo_g12: "国語", math_g12: "数学", eigo_g12: "英語",
+};
+
+export function testTypeLabelForGradeGroup(gradeGroup: GradeGroup): string {
+  return gradeGroup === "g3" ? "共テ" : "基礎力";
+}
+
 function subjectTimeTable(gradeGroup: GradeGroup): Record<string, number> {
   return gradeGroup === "g3" ? SUBJECT_TIMES_G3 : SUBJECT_TIMES_G12;
 }

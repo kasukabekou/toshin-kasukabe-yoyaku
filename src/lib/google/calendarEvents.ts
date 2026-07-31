@@ -29,7 +29,7 @@ export function isTestCalendarConfigured(): boolean {
 export async function insertTestEvent(params: {
   startISO: string;
   endISO: string;
-  applicantName: string;
+  summary: string;
   applicantPhone: string;
   rawTypeLabel: string;
   dayIndex: number;
@@ -43,8 +43,8 @@ export async function insertTestEvent(params: {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        summary: `${params.applicantName}様　${params.rawTypeLabel}`,
-        description: `予約フォームからの自動登録\n電話番号: ${params.applicantPhone}\n学力診断テスト（${params.dayIndex + 1}日目）`,
+        summary: params.summary,
+        description: `予約フォームからの自動登録\n電話番号: ${params.applicantPhone}\n申込種別: ${params.rawTypeLabel}\n学力診断テスト（${params.dayIndex + 1}日目）`,
         start: { dateTime: params.startISO },
         end: { dateTime: params.endISO },
         colorId: TEST_EVENT_COLOR_ID,
