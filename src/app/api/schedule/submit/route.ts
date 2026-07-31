@@ -4,7 +4,8 @@ import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendarClient";
 import { isSlotStillFree, insertInterviewEvent } from "@/lib/google/calendarEvents";
-import { sendApplicationConfirmationEmail } from "@/lib/email/sendConfirmation";
+import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
+import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
 
 const hearingSchema = z.object({
   item1: z.string().max(2000), item2: z.string().max(2000), item3: z.string().max(2000),
@@ -137,6 +138,15 @@ export async function POST(request: NextRequest) {
   await sendApplicationConfirmationEmail({
     to: resolved.application.email,
     applicantName: resolved.application.name,
+    testSegments,
+    interviewSlot,
+  });
+  await sendStaffNotificationEmail({
+    applicantName: resolved.application.name,
+    rawTypeLabel: RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType,
+    school: resolved.application.school,
+    grade: resolved.application.grade,
+    phone: resolved.application.phone,
     testSegments,
     interviewSlot,
   });

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
-import { sendApplicationConfirmationEmail } from "@/lib/email/sendConfirmation";
+import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
+import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
 
 const submitSchema = z.object({
   token: z.string().min(1),
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest) {
   await sendApplicationConfirmationEmail({
     to: resolved.application.email,
     applicantName: resolved.application.name,
+    testSegments: [],
+    interviewSlot: null,
+  });
+  await sendStaffNotificationEmail({
+    applicantName: resolved.application.name,
+    rawTypeLabel: RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType,
+    school: resolved.application.school,
+    grade: resolved.application.grade,
+    phone: resolved.application.phone,
     testSegments: [],
     interviewSlot: null,
   });
