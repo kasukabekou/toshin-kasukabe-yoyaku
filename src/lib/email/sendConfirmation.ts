@@ -21,8 +21,17 @@ interface ConfirmationInput {
 
 // 送信失敗はアプリ全体の処理を止めない（メールが届かなくても予約自体は成立させる）。
 // 呼び出し側は結果を待たずログだけ見ればよい設計にしている。
+function staffNotificationRecipients(): string[] {
+  const candidates = [
+    process.env.STAFF_NOTIFICATION_EMAIL,
+    process.env.STAFF_NOTIFICATION_EMAIL1,
+    process.env.STAFF_NOTIFICATION_EMAIL2,
+  ];
+  return candidates.filter((v): v is string => !!v);
+}
+
 export function isStaffNotificationConfigured(): boolean {
-  return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL && process.env.STAFF_NOTIFICATION_EMAIL);
+  return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) && staffNotificationRecipients().length > 0;
 }
 
 interface StaffNotificationInput {
@@ -62,7 +71,7 @@ export async function sendStaffNotificationEmail(input: StaffNotificationInput):
   try {
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL as string,
-      to: process.env.STAFF_NOTIFICATION_EMAIL as string,
+      to: staffNotificationRecipients(),
       subject: `【予約通知】${input.applicantName}様（${input.rawTypeLabel}）`,
       text: lines.join("\n"),
     });
