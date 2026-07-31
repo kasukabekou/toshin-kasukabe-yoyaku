@@ -1,0 +1,50 @@
+import "server-only";
+import { Resend } from "resend";
+
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
+function fmt(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}（${WEEKDAY_LABELS[d.getDay()]}）${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+export function isEmailConfigured(): boolean {
+  return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+}
+
+interface ConfirmationInput {
+  to: string;
+  applicantName: string;
+  testSegments: { startAt: string; endAt: string; dayIndex: number }[];
+  interviewSlot: { startAt: string; endAt: string } | null;
+}
+
+// 送信失敗はアプリ全体の処理を止めない（メールが届かなくても予約自体は成立させる）。
+// 呼び出し側は結果を待たずログだけ見ればよい設計にしている。
+export async function sendApplicationConfirmationEmail(input: ConfirmationInput): Promise<void> {
+  if (!isEmailConfigured()) return;
+
+  const lines: string[] = [`${input.applicantName}様`, "", "以下の内容でご予約を承りました。"];
+
+  const sortedTests = [...input.testSegments].sort((a, b) => a.dayIndex - b.dayIndex);
+  for (const t of sortedTests) {
+    lines.push(`■学力診断テスト（${t.dayIndex + 1}日目）：${fmt(t.startAt)}〜${fmt(t.endAt).split("）")[1]}`);
+  }
+  if (input.interviewSlot) {
+    lines.push(`■初回三者面談：${fmt(input.interviewSlot.startAt)}〜${fmt(input.interviewSlot.endAt).split("）")[1]}`);
+  }
+  lines.push("", "ご不明点がございましたら校舎までお問い合わせください。", "", "東進ハイスクール春日部校");
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  try {
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL as string,
+      to: input.to,
+      subject: "【東進ハイスクール春日部校】ご予約内容の確認",
+      text: lines.join("\n"),
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("confirmation email failed", err);
+  }
+}

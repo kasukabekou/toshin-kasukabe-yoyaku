@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #F7FAF9;
+  --color-surface: #FFFFFF;
+  --color-subtle: #EEF5F1;
+  --color-border: #DCE7E1;
+  --color-fg: #16241D;
+  --color-mutedfg: #5B6D64;
+  /* 東進ブランドのグリーン想定（正式なブランドカラーがあれば差し替えてください） */
+  --color-primary: #0E8A5F;
+  --color-primaryfg: #FFFFFF;
+  --color-danger: #EF4444;
+
+  --radius: 10px;
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", Meiryo, sans-serif;
+}
+
+:root {
+  --gradient-logo: linear-gradient(135deg, #0E8A5F 0%, #12A374 100%);
+  --gradient-primary: linear-gradient(135deg, #0E8A5F 0%, #12A374 100%);
+}
+
+.btn-gradient {
+  background: var(--gradient-primary);
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.25);
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+.btn-gradient:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+* { border-color: var(--color-border); }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
