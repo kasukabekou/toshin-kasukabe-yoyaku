@@ -3,7 +3,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendarClient";
-import { isSlotStillFree, insertInterviewEvent } from "@/lib/google/calendarEvents";
+import { isSlotStillFree, insertInterviewEvent, isTestCalendarConfigured, insertTestEvent } from "@/lib/google/calendarEvents";
 import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
 import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
 
@@ -58,6 +58,23 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const rawTypeLabel = RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType;
+  const testGoogleEventIds: (string | null)[] = [];
+  if (testSegments.length > 0 && isTestCalendarConfigured()) {
+    for (const seg of testSegments) {
+      testGoogleEventIds.push(
+        await insertTestEvent({
+          startISO: seg.startAt,
+          endISO: seg.endAt,
+          applicantName: resolved.application.name,
+          applicantPhone: resolved.application.phone,
+          rawTypeLabel,
+          dayIndex: seg.dayIndex,
+        })
+      );
+    }
+  }
+
   const { error: hearingError } = await supabaseAdmin.from("schedule_hearing_answers").upsert(
     {
       id: `hear_${applicationId}`,
@@ -106,6 +123,7 @@ export async function POST(request: NextRequest) {
         start_at: seg.startAt,
         end_at: seg.endAt,
         day_index: seg.dayIndex,
+        google_event_id: testGoogleEventIds[i] ?? null,
       })),
       ...(interviewSlot
         ? [
@@ -143,7 +161,7 @@ export async function POST(request: NextRequest) {
   });
   await sendStaffNotificationEmail({
     applicantName: resolved.application.name,
-    rawTypeLabel: RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType,
+    rawTypeLabel,
     school: resolved.application.school,
     grade: resolved.application.grade,
     phone: resolved.application.phone,

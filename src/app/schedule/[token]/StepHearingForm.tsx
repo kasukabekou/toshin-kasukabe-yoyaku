@@ -22,6 +22,10 @@ export function StepHearingForm({
   return (
     <Card className="p-5">
       <CardHeader title="お伺い（ヒアリング）" />
+      <p className="mt-2 text-xs text-mutedfg">
+        お一人おひとりの状況に合ったご説明や、今後の学習・体験の流れをご提案するため、現在の学習状況や志望校などについてお伺いします。
+        可能な範囲で、できるだけ詳しくご回答いただけますと幸いです。
+      </p>
       <div className="mt-4 space-y-4">
         {visibleKeys.map((key) => (
           <Field key={key} label={HEARING_ITEM_LABELS[key]}>

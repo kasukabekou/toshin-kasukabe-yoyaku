@@ -261,6 +261,21 @@ export function recommendRikaCount(
 // --- 初回三者面談：星野カレンダー（busy）を考慮した空き枠検出 ---
 export const INTERVIEW_MINUTES = 90;
 
+// 面談は校舎の営業時間帯とは切り離し、担当者の負担を考慮して10:00〜21:30の固定枠から選べるようにする。
+// 休館日はテスト等と同様に対応不可（0分）とする。
+function interviewHoursFor(date: Date): { start: Date; end: Date } {
+  if (isClosedDate(date)) {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    return { start, end: new Date(start) };
+  }
+  const start = new Date(date);
+  start.setHours(10, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(21, 30, 0, 0);
+  return { start, end };
+}
+
 export interface InterviewSlot {
   startAt: Date;
   endAt: Date;
@@ -280,7 +295,7 @@ export function generateInterviewSlots(
     const day = new Date(scanStart);
     day.setDate(day.getDate() + d);
     day.setHours(0, 0, 0, 0);
-    const { start, end } = businessHoursFor(day);
+    const { start, end } = interviewHoursFor(day);
 
     const dayEarliest = d === 0 && afterDate && afterDate.getTime() > start.getTime() ? afterDate : start;
     const cursorStart = new Date(dayEarliest);

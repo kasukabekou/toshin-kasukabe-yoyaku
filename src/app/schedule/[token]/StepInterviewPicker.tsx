@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, Button, EmptyState } from "@/components/ui/primitives";
-import { requiresTest } from "@/lib/booking/logic";
 import type { Application, BusyBlock } from "@/lib/types";
 import type { WizardState, WizardAction } from "./wizardReducer";
 import { computeInterviewSlots } from "./deriveSchedule";
@@ -53,9 +52,9 @@ export function StepInterviewPicker({
     <Card className="p-5">
       <CardHeader title="初回三者面談の日時選択" />
       <p className="mt-2 text-xs text-mutedfg">
-        {requiresTest(application.pattern)
-          ? "学力診断テスト終了後、面談担当者の空き時間から候補を表示しています。"
-          : "面談担当者の空き時間から候補を表示しています。"}
+        初回三者面談では、学力診断テストの結果や現在の学習状況を踏まえ、志望校合格に向けた今後の学習方針についてお話しします。
+        東進が蓄積してきた受験データや指導ノウハウをもとに、志望校合格までに必要な学習内容やスケジュールをご説明します。
+        生徒ご本人・保護者様・担当者の三者で目標や今後の方針を共有し、安心して学習をスタートするための面談です。
       </p>
 
       {loadError && (
