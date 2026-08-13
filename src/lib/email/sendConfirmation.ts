@@ -69,12 +69,16 @@ export async function sendStaffNotificationEmail(input: StaffNotificationInput):
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL as string,
       to: staffNotificationRecipients(),
       subject: `【予約通知】${input.applicantName}様（${input.rawTypeLabel}）`,
       text: lines.join("\n"),
     });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error("staff notification email rejected by Resend", error);
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("staff notification email failed", err);

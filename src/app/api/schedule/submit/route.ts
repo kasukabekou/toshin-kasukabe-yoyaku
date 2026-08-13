@@ -5,6 +5,7 @@ import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendarClient";
 import { isSlotStillFree, insertInterviewEvent, isTestCalendarConfigured, insertTestEvent } from "@/lib/google/calendarEvents";
 import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
+import { sendLineNotification } from "@/lib/line/sendLineNotification";
 import { RAW_TYPE_LABELS, CALENDAR_SUBJECT_LABELS, testTypeLabelForGradeGroup } from "@/lib/booking/logic";
 import type { SubjectKey } from "@/lib/types";
 
@@ -170,6 +171,15 @@ export async function POST(request: NextRequest) {
     interviewSlot,
   });
   await sendStaffNotificationEmail({
+    applicantName: resolved.application.name,
+    rawTypeLabel,
+    school: resolved.application.school,
+    grade: resolved.application.grade,
+    phone: resolved.application.phone,
+    testSegments,
+    interviewSlot,
+  });
+  await sendLineNotification({
     applicantName: resolved.application.name,
     rawTypeLabel,
     school: resolved.application.school,
