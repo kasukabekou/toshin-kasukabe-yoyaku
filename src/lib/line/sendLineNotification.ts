@@ -40,7 +40,7 @@ export async function sendLineNotification(input: LineNotificationInput): Promis
   if (input.interviewSlot) {
     lines.push(`初回三者面談：${fmt(input.interviewSlot.startAt)}〜${fmt(input.interviewSlot.endAt).split("）")[1]}`);
   }
-  lines.push("詳細は /staff でご確認ください。");
+  lines.push("詳細はこちら：https://toshin-kasukabe-yoyaku.vercel.app/staff");
 
   try {
     const res = await fetch("https://api.line.me/v2/bot/message/push", {
