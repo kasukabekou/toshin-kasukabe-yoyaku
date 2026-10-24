@@ -6,7 +6,9 @@ import { supabaseAdmin } from "@/lib/supabase/adminClient";
 export async function GET() {
   const { error } = await supabaseAdmin.from("schedule_applications").select("id").limit(1);
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    // eslint-disable-next-line no-console
+    console.error("health check failed", error);
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }
