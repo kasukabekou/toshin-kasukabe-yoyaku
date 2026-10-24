@@ -20,7 +20,7 @@ const HEARING_LABELS = [
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" });
 }
 
 export default async function StaffPage() {
@@ -101,12 +101,12 @@ export default async function StaffPage() {
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {testAppointments.map((t, i) => (
                     <span key={i} className="rounded bg-primary/10 px-2 py-1 text-primary">
-                      学診テスト({t.dayIndex + 1}日目): {formatDateTime(t.startAt)}〜{new Date(t.endAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                      学診テスト({t.dayIndex + 1}日目): {formatDateTime(t.startAt)}〜{new Date(t.endAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}
                     </span>
                   ))}
                   {interview && (
                     <span className="rounded bg-green-600/10 px-2 py-1 text-green-700">
-                      面談: {formatDateTime(interview.startAt)}〜{new Date(interview.endAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                      面談: {formatDateTime(interview.startAt)}〜{new Date(interview.endAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}
                     </span>
                   )}
                 </div>
