@@ -1,6 +1,6 @@
 // ======================================================================
 // 予約ページ（学力診断テスト・初回三者面談）— エンティティ型定義
-// Work With OS とは別アプリ。DBは同じSupabaseプロジェクトを共有（schedule_ プレフィックスのテーブル群）。
+// DBは他アプリと同じSupabaseプロジェクトを共有（schedule_ プレフィックスのテーブル群）。
 // ======================================================================
 
 export type ID = string;
@@ -99,7 +99,7 @@ export interface ScheduleTokenRecord {
   usedAt: ISODate | null;
 }
 
-// 星野カレンダーのbusy情報（初回三者面談の空き判定にのみ使用）
+// 校舎長カレンダーのbusy情報（初回三者面談の空き判定にのみ使用）
 export interface BusyBlock {
   id: ID;
   ownerId: ID;

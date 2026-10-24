@@ -25,24 +25,39 @@ async function hmacHex(secret: string, message: string): Promise<string> {
     .join("");
 }
 
-export function verifyAccessCode(code: string): boolean {
-  const expected = process.env.STAFF_ACCESS_CODE;
-  if (!expected) {
-    throw new Error("STAFF_ACCESS_CODE が未設定です。");
-  }
-  return textEqual(code, expected);
-}
-
-export async function buildSessionCookieValue(): Promise<string> {
+function sessionSecret(): string {
   const secret = process.env.STAFF_SESSION_SECRET;
   if (!secret) {
     throw new Error("STAFF_SESSION_SECRET が未設定です。");
   }
-  return hmacHex(secret, "staff_ok");
+  return secret;
 }
 
-export async function isValidSessionCookieValue(value: string | undefined): Promise<boolean> {
+// 入力と正解を同じ鍵でHMACしてから比べる（長さの違いが応答時間に出ないようにするため）。
+export async function verifyAccessCode(code: string): Promise<boolean> {
+  const expected = process.env.STAFF_ACCESS_CODE;
+  if (!expected) {
+    throw new Error("STAFF_ACCESS_CODE が未設定です。");
+  }
+  const secret = sessionSecret();
+  return textEqual(await hmacHex(secret, `code:${code}`), await hmacHex(secret, `code:${expected}`));
+}
+
+// セッションの有効期間。Cookieの期限（ブラウザ側）だけでなく、値そのものに発行時刻を入れてサーバー側でも期限切れにする。
+export const STAFF_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12; // 12時間
+
+// Cookie値は「発行時刻.署名」。漏れても期限が来れば使えなくなる。
+// 全員を即時ログアウトさせたいときは STAFF_SESSION_SECRET を変更する。
+export async function buildSessionCookieValue(now: number = Date.now()): Promise<string> {
+  const issuedAt = String(now);
+  return `${issuedAt}.${await hmacHex(sessionSecret(), `staff:${issuedAt}`)}`;
+}
+
+export async function isValidSessionCookieValue(value: string | undefined, now: number = Date.now()): Promise<boolean> {
   if (!value) return false;
-  const expected = await buildSessionCookieValue();
-  return textEqual(value, expected);
+  const [issuedAt, signature] = value.split(".");
+  if (!issuedAt || !signature || !/^\d+$/.test(issuedAt)) return false;
+  const age = now - Number(issuedAt);
+  if (age < -60_000 || age > STAFF_SESSION_MAX_AGE_SECONDS * 1000) return false;
+  return textEqual(signature, await hmacHex(sessionSecret(), `staff:${issuedAt}`));
 }

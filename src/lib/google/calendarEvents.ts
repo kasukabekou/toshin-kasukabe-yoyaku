@@ -87,3 +87,23 @@ export async function insertInterviewEvent(params: {
   const data = (await res.json()) as { id: string };
   return data.id;
 }
+
+// 送信が途中で失敗したときに、作成済みの予定を取り消す（失敗してもログだけ残して続行する）。
+export async function deleteCalendarEvent(target: "interview" | "test", eventId: string): Promise<void> {
+  const calendarId = target === "test" ? process.env.GOOGLE_CALENDAR_ID_TEST : process.env.GOOGLE_CALENDAR_ID;
+  if (!calendarId) return;
+  try {
+    const accessToken = await getGoogleAccessToken();
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok && res.status !== 404 && res.status !== 410) {
+      // eslint-disable-next-line no-console
+      console.error("calendar event delete failed", res.status, await res.text());
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("calendar event delete failed", err);
+  }
+}

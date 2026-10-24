@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { patternForRawType } from "@/lib/booking/logic";
+import { clientIp } from "@/lib/http/clientIp";
 import { generateApplicationToken, generateId } from "@/lib/schedule/token";
 
 const RAW_TYPES = [
@@ -28,12 +29,6 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30日
 const RATE_LIMIT_WINDOW_MS = 1000 * 60 * 10; // 10分
 const RATE_LIMIT_MAX = 5; // 同一IPから10分間に5件まで
 
-function clientIp(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
-}
-
 export async function POST(request: NextRequest) {
   const json = await request.json().catch(() => null);
   const parsed = createSchema.safeParse(json);
@@ -46,7 +41,7 @@ export async function POST(request: NextRequest) {
   }
   const { rawType, name, nameKana, school, grade, email, phone, relation } = parsed.data;
 
-  const ip = clientIp(request);
+  const ip = clientIp(request.headers);
   if (ip !== "unknown") {
     const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
     const { count } = await supabaseAdmin
@@ -79,7 +74,9 @@ export async function POST(request: NextRequest) {
     ip_address: ip === "unknown" ? null : ip,
   });
   if (appError) {
-    return NextResponse.json({ error: appError.message }, { status: 500 });
+    // eslint-disable-next-line no-console
+    console.error("application insert failed", appError);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
   const token = generateApplicationToken();
@@ -91,7 +88,9 @@ export async function POST(request: NextRequest) {
     used_at: null,
   });
   if (tokenError) {
-    return NextResponse.json({ error: tokenError.message }, { status: 500 });
+    // eslint-disable-next-line no-console
+    console.error("token insert failed", tokenError);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
   return NextResponse.json({ token });

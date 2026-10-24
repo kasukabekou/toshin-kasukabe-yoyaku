@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
         source: "google_calendar",
       });
     } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : "google_calendar_error" }, { status: 500 });
+      // eslint-disable-next-line no-console
+      console.error("busy blocks fetch failed", err);
+      return NextResponse.json({ error: "google_calendar_error" }, { status: 500 });
     }
   }
 
@@ -32,7 +34,9 @@ export async function GET(request: NextRequest) {
     .eq("owner_id", ownerId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // eslint-disable-next-line no-console
+    console.error("busy blocks select failed", error);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
   return NextResponse.json({ busyBlocks: (data ?? []).map(busyBlockFromRow), source: "dev_fixture" });

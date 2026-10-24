@@ -1,5 +1,5 @@
 -- 東進ハイスクール春日部校 予約ページ（学力診断テスト・初回三者面談）用スキーマ
--- Work With OS と同じ Supabase プロジェクトに、衝突回避のため schedule_ プレフィックスで追加する。
+-- 他アプリと共有の Supabase プロジェクトに、衝突回避のため schedule_ プレフィックスで追加する。
 -- Supabaseダッシュボードの「SQL Editor」に貼り付けて実行してください。
 --
 -- セキュリティ方針：一般公開ページ（匿名アクセス）から直接テーブルを触らせない。
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS schedule_tokens (
   used_at         TIMESTAMPTZ
 );
 
--- 星野（校舎長）カレンダーの busy 区間。初回三者面談の空き枠検出にのみ使用。
+-- 校舎長カレンダーの busy 区間。初回三者面談の空き枠検出にのみ使用。
 CREATE TABLE IF NOT EXISTS schedule_busy_blocks (
   id          TEXT PRIMARY KEY,
   owner_id    TEXT NOT NULL,

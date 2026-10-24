@@ -1,12 +1,6 @@
 import "server-only";
+import { formatJstDateTime, formatJstTime } from "../datetime/jst";
 import { Resend } from "resend";
-
-const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
-
-function fmt(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}（${WEEKDAY_LABELS[d.getDay()]}）${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
 
 export function isEmailConfigured(): boolean {
   return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
@@ -60,10 +54,10 @@ export async function sendStaffNotificationEmail(input: StaffNotificationInput):
 
   const sortedTests = [...input.testSegments].sort((a, b) => a.dayIndex - b.dayIndex);
   for (const t of sortedTests) {
-    lines.push(`■学力診断テスト（${t.dayIndex + 1}日目）：${fmt(t.startAt)}〜${fmt(t.endAt).split("）")[1]}`);
+    lines.push(`■学力診断テスト（${t.dayIndex + 1}日目）：${formatJstDateTime(t.startAt)}〜${formatJstTime(t.endAt)}`);
   }
   if (input.interviewSlot) {
-    lines.push(`■初回三者面談：${fmt(input.interviewSlot.startAt)}〜${fmt(input.interviewSlot.endAt).split("）")[1]}`);
+    lines.push(`■初回三者面談：${formatJstDateTime(input.interviewSlot.startAt)}〜${formatJstTime(input.interviewSlot.endAt)}`);
   }
   lines.push("", "詳細はスタッフ画面（/staff）でご確認ください。");
 
@@ -92,10 +86,10 @@ export async function sendApplicationConfirmationEmail(input: ConfirmationInput)
 
   const sortedTests = [...input.testSegments].sort((a, b) => a.dayIndex - b.dayIndex);
   for (const t of sortedTests) {
-    lines.push(`■学力診断テスト（${t.dayIndex + 1}日目）：${fmt(t.startAt)}〜${fmt(t.endAt).split("）")[1]}`);
+    lines.push(`■学力診断テスト（${t.dayIndex + 1}日目）：${formatJstDateTime(t.startAt)}〜${formatJstTime(t.endAt)}`);
   }
   if (input.interviewSlot) {
-    lines.push(`■初回三者面談：${fmt(input.interviewSlot.startAt)}〜${fmt(input.interviewSlot.endAt).split("）")[1]}`);
+    lines.push(`■初回三者面談：${formatJstDateTime(input.interviewSlot.startAt)}〜${formatJstTime(input.interviewSlot.endAt)}`);
   }
   lines.push("", "ご不明点がございましたら校舎までお問い合わせください。", "", "東進ハイスクール春日部校");
 

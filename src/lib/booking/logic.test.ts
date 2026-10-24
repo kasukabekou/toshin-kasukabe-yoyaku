@@ -154,7 +154,7 @@ describe("志望校区分からの推奨科目", () => {
   });
 });
 
-describe("初回三者面談の空き枠検出（星野カレンダーのbusyを考慮）", () => {
+describe("初回三者面談の空き枠検出（校舎長カレンダーのbusyを考慮）", () => {
   const busy: BusyBlock[] = [
     { id: "b1", ownerId: "usr_aoki", startAt: dateAt(2026, 7, 13, 13, 0).toISOString(), endAt: dateAt(2026, 7, 13, 21, 30).toISOString(), label: "終日" },
   ];

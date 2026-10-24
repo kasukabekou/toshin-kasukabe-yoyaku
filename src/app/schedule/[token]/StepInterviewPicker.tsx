@@ -5,7 +5,7 @@ import type { Application, BusyBlock } from "@/lib/types";
 import type { WizardState, WizardAction } from "./wizardReducer";
 import { computeInterviewSlots } from "./deriveSchedule";
 
-const HOSHINO_USER_ID = "usr_aoki"; // 星野（校舎長）
+const PRINCIPAL_USER_ID = "usr_aoki"; // 校舎長
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
 function fmtDateTime(d: Date): string {
@@ -28,7 +28,7 @@ export function StepInterviewPicker({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/schedule/busy-blocks?ownerId=${encodeURIComponent(HOSHINO_USER_ID)}`)
+    fetch(`/api/schedule/busy-blocks?ownerId=${encodeURIComponent(PRINCIPAL_USER_ID)}`)
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;

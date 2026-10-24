@@ -20,7 +20,7 @@ export function LoginForm() {
         body: JSON.stringify({ code }),
       });
       if (!res.ok) {
-        setError("アクセスコードが違います。");
+        setError(res.status === 429 ? "試行回数が多すぎます。15分ほど待ってから再度お試しください。" : "アクセスコードが違います。");
         return;
       }
       router.push("/staff");

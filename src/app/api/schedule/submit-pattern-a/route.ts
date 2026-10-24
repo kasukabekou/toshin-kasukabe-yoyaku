@@ -3,6 +3,8 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { resolveScheduleToken } from "@/lib/schedule/resolveToken";
 import { sendApplicationConfirmationEmail, sendStaffNotificationEmail } from "@/lib/email/sendConfirmation";
+import { sendLineNotification } from "@/lib/line/sendLineNotification";
+import { claimScheduleToken, releaseScheduleToken } from "@/lib/schedule/claimToken";
 import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
 
 const submitSchema = z.object({
@@ -33,6 +35,11 @@ export async function POST(request: NextRequest) {
   }
   const applicationId = resolved.applicationId;
 
+  // 同じトークンの並行送信を1件に絞るため、書き込みより先にトークンを確保する。
+  if (!(await claimScheduleToken(token))) {
+    return NextResponse.json({ error: "already_submitted" }, { status: 409 });
+  }
+
   const { error } = await supabaseAdmin.from("schedule_pattern_a_answers").upsert(
     {
       id: `hearA_${applicationId}`,
@@ -46,13 +53,11 @@ export async function POST(request: NextRequest) {
     { onConflict: "application_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    await releaseScheduleToken(token);
+    // eslint-disable-next-line no-console
+    console.error("pattern A answers upsert failed", error);
+    return NextResponse.json({ error: "submit_failed" }, { status: 500 });
   }
-
-  await supabaseAdmin
-    .from("schedule_tokens")
-    .update({ used_at: new Date().toISOString() })
-    .eq("token", token);
 
   await sendApplicationConfirmationEmail({
     to: resolved.application.email,
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
     testSegments: [],
     interviewSlot: null,
   });
-  await sendStaffNotificationEmail({
+  const staffNotice = {
     applicantName: resolved.application.name,
     rawTypeLabel: RAW_TYPE_LABELS[resolved.application.rawType] ?? resolved.application.rawType,
     school: resolved.application.school,
@@ -68,7 +73,9 @@ export async function POST(request: NextRequest) {
     phone: resolved.application.phone,
     testSegments: [],
     interviewSlot: null,
-  });
+  };
+  await sendStaffNotificationEmail(staffNotice);
+  await sendLineNotification(staffNotice);
 
   return NextResponse.json({ ok: true });
 }
