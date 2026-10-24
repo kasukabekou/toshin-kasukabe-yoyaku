@@ -274,7 +274,7 @@ export function recommendRikaCount(
   return opts.halfOrMoreCovered ? 2 : 1;
 }
 
-// --- 初回三者面談：星野カレンダー（busy）を考慮した空き枠検出 ---
+// --- 初回三者面談：校舎長カレンダー（busy）を考慮した空き枠検出 ---
 export const INTERVIEW_MINUTES = 90;
 
 // 面談は校舎の営業時間帯とは切り離し、担当者の負担を考慮して10:00〜21:30の固定枠から選べるようにする。

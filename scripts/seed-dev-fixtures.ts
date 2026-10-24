@@ -1,6 +1,6 @@
 // 開発確認用の固定データをSupabaseに投入するスクリプト。
 // 実行: npm run seed:dev（.env.local の NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY を使用）
-// 投入されるのは開発用の申込2件（パターンC/B）とトークン、星野の busy ブロックのみ。本番データには影響しない。
+// 投入されるのは開発用の申込2件（パターンC/B）とトークン、校舎長の busy ブロックのみ。本番データには影響しない。
 import { createClient } from "@supabase/supabase-js";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 
