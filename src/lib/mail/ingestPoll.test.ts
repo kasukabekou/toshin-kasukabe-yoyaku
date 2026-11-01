@@ -262,6 +262,18 @@ describe("pollMailbox backfill（既存の申込通知の登録）", () => {
     expect(db.tables.schedule_mail_pop_seen ?? []).toHaveLength(0);
   });
 
+  it("時間の予算を使い切ったら途中で止まり、nextOffset から続きを実行すると全件が1回ずつ登録される", async () => {
+    let clock = 0;
+    const step = () => (clock += 10_000); // 呼ばれるたびに10秒進む偽の時計
+    const r1 = (await pollMailbox({ session: session(box()).s, backfill: true, now: step, budgetMs: 15_000 })) as BackfillSummary;
+    expect(r1).toMatchObject({ incomplete: true, nextOffset: 1, scanned: 1 });
+    clock = 0;
+    const r2 = (await pollMailbox({ session: session(box()).s, backfill: true, offset: r1.nextOffset })) as BackfillSummary;
+    expect(r2.incomplete).toBeUndefined();
+    expect(r2.items.map((i) => i.result)).toEqual(["registered", "registered"]);
+    expect(count("schedule_students")).toBe(2);
+  });
+
   it("サーバー上のメールを削除する操作を呼ばない", async () => {
     const { s, calls } = session(box());
     await pollMailbox({ session: s, backfill: true });

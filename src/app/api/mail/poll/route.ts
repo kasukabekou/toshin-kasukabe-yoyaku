@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { mailSecretOk } from "@/lib/mail/auth";
 import { pollMailbox } from "@/lib/mail/poll";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
+// メールサーバー・DBが日本にあるため、関数も東京で動かす（米国だと往復が遅く、時間切れになった）
+export const preferredRegion = "hnd1";
 export const dynamic = "force-dynamic";
 
 // 外部の定期実行サービス（1分おき）から呼ぶ。ヘッダー x-ingest-secret が必要。
+//   ?backfill=1&offset=0 … （時間の予算を使い切ると途中で止まり、incomplete と nextOffset を返す。nextOffset で続きを実行する）
 //   ?backfill=1&offset=0 … メールボックスに既にある申込通知を登録する（offset 通をとばして新しい方から80通を対象。同じ申込は重複しない）。
 //   ?backfill=1&dryRun=1&offset=0 … 上の予行演習。DBに書かず、扱われ方だけ返す。
 //   ?dryRun=1&census=1 … ヘッダーだけで、申込通知の条件に合うメールの件数を数える（個人情報は返さない）。
