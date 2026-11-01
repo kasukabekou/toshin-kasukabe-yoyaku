@@ -1,7 +1,9 @@
 import net from "node:net";
 import tls from "node:tls";
+import { trustedCa } from "./trustedCa";
 
-// 最小限の POP3 クライアント。読み取り専用：DELE（サーバーからの削除）は意図的に実装しない。
+// 最小限の POP3 クライアント。証明書は必ず検証する（rejectUnauthorized は既定の true。中間証明書の不足は trustedCa で補う）。
+//読み取り専用：DELE（サーバーからの削除）は意図的に実装しない。
 // Outlook など他のクライアントが同じメールボックスを使っていても、メールを消さない。
 
 export interface Pop3Config {
@@ -77,14 +79,14 @@ export class Pop3Client {
       throw new Error("本番環境では暗号化なしのPOP接続は許可されていません（MAIL_POP_SECURE=tls または starttls を使用してください）。");
     }
     const sock = await new Promise<net.Socket>((resolve, reject) => {
-      const s = secure === "tls" ? tls.connect({ host, port, servername: host }, () => resolve(s)) : net.connect({ host, port }, () => resolve(s));
+      const s = secure === "tls" ? tls.connect({ host, port, servername: host, ca: trustedCa(), minVersion: "TLSv1.2" }, () => resolve(s)) : net.connect({ host, port }, () => resolve(s));
       s.once("error", reject);
     });
     this.attach(sock);
     await this.expectOk(); // グリーティング
     if (secure === "starttls") {
       await this.command("STLS");
-      const upgraded = tls.connect({ socket: this.socket, servername: host });
+      const upgraded = tls.connect({ socket: this.socket, servername: host, ca: trustedCa(), minVersion: "TLSv1.2" });
       await new Promise<void>((res, rej) => { upgraded.once("secureConnect", res); upgraded.once("error", rej); });
       this.buffer = "";
       this.attach(upgraded);
