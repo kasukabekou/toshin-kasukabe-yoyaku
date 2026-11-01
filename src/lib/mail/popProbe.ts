@@ -1,5 +1,6 @@
 import net from "node:net";
 import tls from "node:tls";
+import { trustedCa } from "./trustedCa";
 
 // 暗号化POPが使えるかの診断。ID・パスワードは一切送らない（接続して挨拶・機能一覧を見るだけ）。
 
@@ -17,7 +18,8 @@ export function probeTls(host: string, port: number, timeoutMs = 8000): Promise<
     let done = false;
     const finish = (r: TlsProbe) => { if (!done) { done = true; sock.destroy(); resolve(r); } };
     // 診断のためだけに証明書エラーでも接続して内容を報告する（認証情報は送らないので安全）。実運用の接続は証明書検証あり。
-    const sock = tls.connect({ host, port, servername: host, rejectUnauthorized: false }, () => {
+    // authorized は、実運用と同じ信頼ストア（Node.js 標準のルート＋同梱の中間証明書）での検証結果。
+    const sock = tls.connect({ host, port, servername: host, ca: trustedCa(), minVersion: "TLSv1.2", rejectUnauthorized: false }, () => {
       const cert = sock.getPeerCertificate();
       const info = {
         authorized: sock.authorized,
