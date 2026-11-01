@@ -45,7 +45,7 @@ const db = vi.hoisted(() => {
 vi.mock("@/lib/supabase/adminClient", () => ({ supabaseAdmin: db.client }));
 
 import { ingestMail } from "./ingest";
-import { pollMailbox, type CensusSummary, type DryRunSummary, type PollSummary, type PopSession } from "./poll";
+import { pollMailbox, type BackfillSummary, type CensusSummary, type DryRunSummary, type PollSummary, type PopSession } from "./poll";
 
 // ---- テスト用のメール（実際の通知メールの形式に合わせたダミー） ----
 const BODY = (webId: string, name = ["山田", "太郎"]) => `Date = 2026/10/28
@@ -130,6 +130,15 @@ describe("ingestMail（段階5・6: 重複防止と登録）", () => {
     expect(second.merge_candidate_of).toBe(db.tables.schedule_students[0].id);
   });
 
+  it("途中で失敗した後に再試行すると、生徒が作られ、取込記録にも紐づく（二重にならない）", async () => {
+    db.failOn.add("schedule_students");
+    expect((await ingestMail({ subject: SUBJECT, body: BODY("web-1") })).status).toBe("error");
+    db.failOn.clear();
+    expect((await ingestMail({ subject: SUBJECT, body: BODY("web-1") })).status).toBe("duplicate");
+    expect(count("schedule_students")).toBe(1);
+    expect(db.tables.schedule_mail_ingests[0].student_id).toBe(db.tables.schedule_students[0].id);
+  });
+
   it("DBに書けないときはエラーを返す（登録済みと誤認させない）", async () => {
     db.failOn.add("schedule_students");
     expect((await ingestMail({ subject: SUBJECT, body: BODY("web-1") })).status).toBe("error");
@@ -212,6 +221,50 @@ describe("pollMailbox 集計（census）", () => {
     expect(r.census).toEqual({ mailboxCount: 4, scanned: 4, fromToshin: 3, applicationLike: 2, fromToshinNotApplication: 1, unreadable: 0 });
     expect(Object.keys(db.tables)).toHaveLength(0);
     expect(JSON.stringify(r)).not.toMatch(/山田|会議|システム/);
+    expect(calls.every((c) => ["connect", "uidl", "quit"].includes(c) || c.startsWith("retr:"))).toBe(true);
+  });
+});
+
+describe("pollMailbox backfill（既存の申込通知の登録）", () => {
+  // 古い→新しい の順。申込通知は w1（4番目に新しい）と w2（2番目に新しい）
+  const box = () => [other("a"), utf8Mail(SUBJECT, BODY("w1"), undefined, "m1"), other("b"), utf8Mail(SUBJECT, BODY("w2", ["佐藤", "花子"]), undefined, "m2"), other("c")];
+
+  it("予行演習はDBに触れず、申込通知だけを新しい順に返し、氏名などは含まない", async () => {
+    const r = (await pollMailbox({ session: session(box()).s, backfill: true, dryRun: true })) as BackfillSummary;
+    expect(r.items).toEqual([
+      { position: 2, result: "register", rawType: "special_invite", missing: [] },
+      { position: 4, result: "register", rawType: "special_invite", missing: [] },
+    ]);
+    expect(Object.keys(db.tables)).toHaveLength(0);
+    expect(JSON.stringify(r)).not.toMatch(/山田|佐藤|taro@example/);
+  });
+
+  it("実行すると申込通知だけを登録し、確認済みにも記録する。再実行しても増えない", async () => {
+    const r1 = (await pollMailbox({ session: session(box()).s, backfill: true })) as BackfillSummary;
+    expect(r1.items.map((i) => i.result)).toEqual(["registered", "registered"]);
+    expect(count("schedule_students")).toBe(2);
+    expect(db.tables.schedule_mail_pop_seen.map((x) => x.uid).sort()).toEqual(["uid-2", "uid-4"]);
+    const r2 = (await pollMailbox({ session: session(box()).s, backfill: true })) as BackfillSummary;
+    expect(r2.items.map((i) => i.result)).toEqual(["duplicate", "duplicate"]);
+    expect([count("schedule_students"), count("schedule_enrollments"), count("schedule_mail_ingests")]).toEqual([2, 2, 2]);
+  });
+
+  it("offset で新しい方の通数をとばして、古い方だけを対象にできる", async () => {
+    const r = (await pollMailbox({ session: session(box()).s, backfill: true, dryRun: true, offset: 3 })) as BackfillSummary;
+    expect(r).toMatchObject({ offset: 3, scanned: 2 });
+    expect(r.items).toEqual([{ position: 4, result: "register", rawType: "special_invite", missing: [] }]);
+  });
+
+  it("DBに書けない1通があっても止まらず、その結果を error として返す", async () => {
+    db.failOn.add("schedule_students");
+    const r = (await pollMailbox({ session: session(box()).s, backfill: true })) as BackfillSummary;
+    expect(r.items.map((i) => i.result)).toEqual(["error", "error"]);
+    expect(db.tables.schedule_mail_pop_seen ?? []).toHaveLength(0);
+  });
+
+  it("サーバー上のメールを削除する操作を呼ばない", async () => {
+    const { s, calls } = session(box());
+    await pollMailbox({ session: s, backfill: true });
     expect(calls.every((c) => ["connect", "uidl", "quit"].includes(c) || c.startsWith("retr:"))).toBe(true);
   });
 });

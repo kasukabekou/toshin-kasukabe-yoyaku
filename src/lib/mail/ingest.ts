@@ -57,9 +57,8 @@ export async function ingestMail(input: { subject: string; body: string; from?: 
     { onConflict: "id", ignoreDuplicates: true }
   );
   if (eErr) return { status: "error", message: eErr.message };
-  if (!duplicate) {
-    await supabaseAdmin.from("schedule_mail_ingests").update({ student_id: studentId }).eq("id", `mail_${h}`);
-    await audit("schedule_students", studentId, "insert", null, { via: "mail", rawType: d.rawType });
-  }
+  // 途中で失敗して再試行した場合（duplicate）も、取込記録と生徒の紐づけは必ず揃える（何度実行しても同じ結果）
+  await supabaseAdmin.from("schedule_mail_ingests").update({ student_id: studentId }).eq("id", `mail_${h}`);
+  if (!duplicate) await audit("schedule_students", studentId, "insert", null, { via: "mail", rawType: d.rawType });
   return { status: duplicate ? "duplicate" : "registered", studentId, missing: d.missing };
 }

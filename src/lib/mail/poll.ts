@@ -53,7 +53,27 @@ export interface CensusSummary {
   subjectPatterns?: { pattern: string; count: number }[];
 }
 
+// 既にメールボックスにある申込通知を登録するための取込（初回の取込は既存分を取り込まないため）。
+// 新しい方から offset 通をとばして最大 BACKFILL_WINDOW 通を、ヘッダーで選別して処理する。
+export interface BackfillItem {
+  position: number; // 新しい順（1が最新）
+  result: "register" | "needs_review" | IngestOutcome["status"] | "unreadable"; // dryRun のときは register / needs_review
+  rawType?: string;
+  missing?: string[];
+  reason?: string;
+}
+export interface BackfillSummary {
+  backfill: true;
+  dryRun: boolean;
+  mailboxCount: number;
+  offset: number;
+  scanned: number;
+  items: BackfillItem[]; // 申込通知の条件に合ったメールだけ。件名・氏名・本文は含まない
+}
+
 export interface PollOptions {
+  backfill?: boolean;
+  offset?: number;
   dryRun?: boolean;
   last?: number; // ドライラン：新しい方から何通を確認するか
   census?: boolean; // ドライラン：ヘッダーだけで、申込通知の条件に合うメールの件数を数える
@@ -76,6 +96,7 @@ function openSession(opts: PollOptions): PopSession {
   return new Pop3Client(cfg);
 }
 
+const BACKFILL_WINDOW = 80; // 1回の実行時間（30秒）に収まる通数
 const CENSUS_MAX = 80; // 1回の実行時間（30秒）に収まる上限
 
 // 件名を種類ごとにまとめるための正規化。数字（日付・番号）を # にして、先頭30文字だけ使う。
@@ -105,6 +126,33 @@ async function census(client: PopSession, last: number, withSubjects: boolean): 
   return { dryRun: true, census: c, ...(subjectPatterns ? { subjectPatterns } : {}) };
 }
 
+async function backfill(client: PopSession, offset: number, dry: boolean): Promise<BackfillSummary> {
+  const list = await client.uidl();
+  const end = Math.max(list.length - Math.max(offset, 0), 0);
+  const picked = list.slice(Math.max(end - BACKFILL_WINDOW, 0), end);
+  const items: BackfillItem[] = [];
+  for (const [i, m] of [...picked.entries()].reverse()) {
+    const position = Math.max(offset, 0) + (picked.length - i);
+    try {
+      const head = await parseRaw(client.top ? await client.top(m.n, 0) : await client.retr(m.n));
+      if (!isApplicationMail(head.subject, head.from)) continue;
+      const mail = client.top ? await parseRaw(await client.retr(m.n)) : head;
+      if (dry) {
+        const r = parseApplicationMail({ subject: mail.subject, body: mail.body });
+        items.push(r.ok ? { position, result: "register", rawType: r.data.rawType, missing: r.data.missing } : { position, result: "needs_review", reason: r.reason });
+        continue;
+      }
+      const r = await ingestMail(mail);
+      if (r.status === "error") { items.push({ position, result: "error" }); continue; }
+      items.push(r.status === "needs_review" ? { position, result: r.status, reason: r.reason } : { position, result: r.status, missing: r.missing });
+      await supabaseAdmin.from("schedule_mail_pop_seen").upsert({ uid: m.uid, note: "ingested" }, { onConflict: "uid", ignoreDuplicates: true });
+    } catch {
+      items.push({ position, result: "unreadable" });
+    }
+  }
+  return { backfill: true, dryRun: dry, mailboxCount: list.length, offset: Math.max(offset, 0), scanned: picked.length, items };
+}
+
 // 取り込みの予行演習。DBには一切書かず（読みもせず）、新しい方から数通を解析して「どう扱われるか」だけを返す。
 async function dryRun(client: PopSession, last: number): Promise<DryRunSummary> {
   const list = await client.uidl();
@@ -131,10 +179,11 @@ async function dryRun(client: PopSession, last: number): Promise<DryRunSummary> 
 }
 
 // メールボックスの新着を確認し、申込通知を登録する。サーバー上のメールは削除しない。
-export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary | DryRunSummary | CensusSummary> {
+export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary | DryRunSummary | CensusSummary | BackfillSummary> {
   const client = openSession(opts);
   try {
     await client.connect();
+    if (opts.backfill) return await backfill(client, opts.offset ?? 0, !!opts.dryRun);
     if (opts.dryRun && opts.census) return await census(client, opts.last ?? CENSUS_MAX, !!opts.subjects);
     if (opts.dryRun) return await dryRun(client, opts.last ?? DRY_RUN_DEFAULT);
 
