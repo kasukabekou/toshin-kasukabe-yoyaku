@@ -68,10 +68,14 @@ export interface BackfillSummary {
   mailboxCount: number;
   offset: number;
   scanned: number;
+  incomplete?: boolean; // 時間の予算を使い切って途中で止まった。続きは nextOffset から
+  nextOffset?: number;
   items: BackfillItem[]; // 申込通知の条件に合ったメールだけ。件名・氏名・本文は含まない
 }
 
 export interface PollOptions {
+  now?: () => number; // テスト用に時計を差し替える
+  budgetMs?: number; // backfill の実行時間の予算
   backfill?: boolean;
   offset?: number;
   dryRun?: boolean;
@@ -96,6 +100,7 @@ function openSession(opts: PollOptions): PopSession {
   return new Pop3Client(cfg);
 }
 
+const BACKFILL_BUDGET_MS = 35_000; // 関数の上限（60秒）に余裕を残して、次のメールに進むのをやめる
 const BACKFILL_WINDOW = 80; // 1回の実行時間（30秒）に収まる通数
 const CENSUS_MAX = 80; // 1回の実行時間（30秒）に収まる上限
 
@@ -126,12 +131,17 @@ async function census(client: PopSession, last: number, withSubjects: boolean): 
   return { dryRun: true, census: c, ...(subjectPatterns ? { subjectPatterns } : {}) };
 }
 
-async function backfill(client: PopSession, offset: number, dry: boolean): Promise<BackfillSummary> {
+async function backfill(client: PopSession, offset: number, dry: boolean, now: () => number, budgetMs: number): Promise<BackfillSummary> {
+  const startedAt = now();
   const list = await client.uidl();
   const end = Math.max(list.length - Math.max(offset, 0), 0);
   const picked = list.slice(Math.max(end - BACKFILL_WINDOW, 0), end);
   const items: BackfillItem[] = [];
+  let processed = 0;
+  let incomplete = false;
   for (const [i, m] of [...picked.entries()].reverse()) {
+    if (now() - startedAt > budgetMs) { incomplete = true; break; }
+    processed++;
     const position = Math.max(offset, 0) + (picked.length - i);
     try {
       const head = await parseRaw(client.top ? await client.top(m.n, 0) : await client.retr(m.n));
@@ -150,7 +160,8 @@ async function backfill(client: PopSession, offset: number, dry: boolean): Promi
       items.push({ position, result: "unreadable" });
     }
   }
-  return { backfill: true, dryRun: dry, mailboxCount: list.length, offset: Math.max(offset, 0), scanned: picked.length, items };
+  const base = Math.max(offset, 0);
+  return { backfill: true, dryRun: dry, mailboxCount: list.length, offset: base, scanned: processed, ...(incomplete ? { incomplete: true, nextOffset: base + processed } : {}), items };
 }
 
 // 取り込みの予行演習。DBには一切書かず（読みもせず）、新しい方から数通を解析して「どう扱われるか」だけを返す。
@@ -183,7 +194,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
   const client = openSession(opts);
   try {
     await client.connect();
-    if (opts.backfill) return await backfill(client, opts.offset ?? 0, !!opts.dryRun);
+    if (opts.backfill) return await backfill(client, opts.offset ?? 0, !!opts.dryRun, opts.now ?? Date.now, opts.budgetMs ?? BACKFILL_BUDGET_MS);
     if (opts.dryRun && opts.census) return await census(client, opts.last ?? CENSUS_MAX, !!opts.subjects);
     if (opts.dryRun) return await dryRun(client, opts.last ?? DRY_RUN_DEFAULT);
 
