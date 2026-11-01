@@ -45,7 +45,7 @@ const db = vi.hoisted(() => {
 vi.mock("@/lib/supabase/adminClient", () => ({ supabaseAdmin: db.client }));
 
 import { ingestMail } from "./ingest";
-import { pollMailbox, type DryRunSummary, type PollSummary, type PopSession } from "./poll";
+import { pollMailbox, type CensusSummary, type DryRunSummary, type PollSummary, type PopSession } from "./poll";
 
 // ---- テスト用のメール（実際の通知メールの形式に合わせたダミー） ----
 const BODY = (webId: string, name = ["山田", "太郎"]) => `Date = 2026/10/28
@@ -157,6 +157,7 @@ describe("pollMailbox（段階2・4・8: 取得・削除しない・再試行）
     const r2 = (await pollMailbox({ session: session(mails).s })) as PollSummary;
     expect(r2.checked).toBe(0);
     expect(count("schedule_students")).toBe(1);
+    expect(r1.skippedFromToshin).toBe(0);
   });
 
   it("サーバー上のメールを削除する操作は一切呼ばない（接続・一覧・取得・終了のみ）", async () => {
@@ -200,6 +201,18 @@ describe("pollMailbox（段階2・4・8: 取得・削除しない・再試行）
     const many = [other("x"), ...Array.from({ length: 20 }, (_, i) => other(`n${i}`))];
     const r = (await pollMailbox({ session: session(many).s })) as PollSummary;
     expect(r).toMatchObject({ checked: 15, remaining: 5 });
+  });
+});
+
+describe("pollMailbox 集計（census）", () => {
+  it("ヘッダーだけで件数を数え、個人情報を返さない。本部からの申込形式外メールも数える", async () => {
+    const mails = [other("a"), utf8Mail(SUBJECT, BODY("w1")), utf8Mail("システムのお知らせ", "本文", "Notifier <sender@toshin.com>", "s"), utf8Mail("[登録] 資料請求", "氏 = 山田")];
+    const { s, calls } = session(mails);
+    const r = (await pollMailbox({ session: s, dryRun: true, census: true })) as CensusSummary;
+    expect(r.census).toEqual({ mailboxCount: 4, scanned: 4, fromToshin: 3, applicationLike: 2, fromToshinNotApplication: 1, unreadable: 0 });
+    expect(Object.keys(db.tables)).toHaveLength(0);
+    expect(JSON.stringify(r)).not.toMatch(/山田|会議|システム/);
+    expect(calls.every((c) => ["connect", "uidl", "quit"].includes(c) || c.startsWith("retr:"))).toBe(true);
   });
 });
 

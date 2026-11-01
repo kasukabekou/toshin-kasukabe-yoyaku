@@ -17,6 +17,7 @@ export interface PopSession {
   connect(): Promise<void>;
   uidl(): Promise<{ n: number; uid: string }[]>;
   retr(n: number): Promise<Buffer>;
+  top?(n: number, lines?: number): Promise<Buffer>; // ヘッダーのみ取得（集計用）
   quit(): Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export interface PollSummary {
   checked: number;
   ingested: { status: IngestOutcome["status"]; count: number }[];
   skipped: number;
+  skippedFromToshin: number; // 送信元は本部だが申込通知の形式に合わず読み飛ばした数。0でなければ形式変更の疑い
   unreadable: number;
   remaining: number;
 }
@@ -43,9 +45,16 @@ export interface DryRunSummary {
   items: DryRunItem[];
 }
 
+// ヘッダーだけの集計。件名・送信元・氏名は返さず、件数だけを返す。
+export interface CensusSummary {
+  dryRun: true;
+  census: { mailboxCount: number; scanned: number; fromToshin: number; applicationLike: number; fromToshinNotApplication: number; unreadable: number };
+}
+
 export interface PollOptions {
   dryRun?: boolean;
   last?: number; // ドライラン：新しい方から何通を確認するか
+  census?: boolean; // ドライラン：ヘッダーだけで、申込通知の条件に合うメールの件数を数える
   session?: PopSession;
 }
 
@@ -62,6 +71,27 @@ function openSession(opts: PollOptions): PopSession {
   const cfg = pop3ConfigFromEnv();
   if (!cfg) throw new Error("MAIL_POP_HOST / MAIL_POP_USER / MAIL_POP_PASSWORD が未設定です。");
   return new Pop3Client(cfg);
+}
+
+const CENSUS_MAX = 80; // 1回の実行時間（30秒）に収まる上限
+
+async function census(client: PopSession, last: number): Promise<CensusSummary> {
+  const list = await client.uidl();
+  const picked = list.slice(-Math.min(Math.max(last, 1), CENSUS_MAX));
+  const c = { mailboxCount: list.length, scanned: picked.length, fromToshin: 0, applicationLike: 0, fromToshinNotApplication: 0, unreadable: 0 };
+  for (const m of picked) {
+    try {
+      const raw = client.top ? await client.top(m.n, 0) : await client.retr(m.n);
+      const { subject, from } = await parseRaw(raw);
+      const fromToshin = /toshin.com/i.test(from);
+      if (fromToshin) c.fromToshin++;
+      if (isApplicationMail(subject, from)) c.applicationLike++;
+      else if (fromToshin) c.fromToshinNotApplication++;
+    } catch {
+      c.unreadable++;
+    }
+  }
+  return { dryRun: true, census: c };
 }
 
 // 取り込みの予行演習。DBには一切書かず（読みもせず）、新しい方から数通を解析して「どう扱われるか」だけを返す。
@@ -90,10 +120,11 @@ async function dryRun(client: PopSession, last: number): Promise<DryRunSummary> 
 }
 
 // メールボックスの新着を確認し、申込通知を登録する。サーバー上のメールは削除しない。
-export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary | DryRunSummary> {
+export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary | DryRunSummary | CensusSummary> {
   const client = openSession(opts);
   try {
     await client.connect();
+    if (opts.dryRun && opts.census) return await census(client, opts.last ?? CENSUS_MAX);
     if (opts.dryRun) return await dryRun(client, opts.last ?? DRY_RUN_DEFAULT);
 
     const list = await client.uidl();
@@ -106,7 +137,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
           .upsert(list.slice(i, i + 500).map((m) => ({ uid: m.uid, note: "baseline" })), { onConflict: "uid", ignoreDuplicates: true });
         if (error) throw new Error(error.message);
       }
-      return { baseline: list.length, checked: 0, ingested: [], skipped: 0, unreadable: 0, remaining: 0 };
+      return { baseline: list.length, checked: 0, ingested: [], skipped: 0, skippedFromToshin: 0, unreadable: 0, remaining: 0 };
     }
 
     const { data: seenRows } = await supabaseAdmin.from("schedule_mail_pop_seen").select("uid").in("uid", list.map((m) => m.uid));
@@ -116,6 +147,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
 
     const tally = new Map<IngestOutcome["status"], number>();
     let skipped = 0;
+    let skippedFromToshin = 0;
     let unreadable = 0;
     for (const m of batch) {
       let note = "skipped";
@@ -134,6 +166,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
         note = "ingested";
       } else if (mail) {
         skipped++;
+        if (/toshin.com/i.test(mail.from)) skippedFromToshin++;
       }
       await supabaseAdmin.from("schedule_mail_pop_seen").upsert({ uid: m.uid, note }, { onConflict: "uid", ignoreDuplicates: true });
     }
@@ -141,6 +174,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
       checked: batch.length,
       ingested: [...tally].map(([status, count]) => ({ status, count })),
       skipped,
+      skippedFromToshin,
       unreadable,
       remaining: unseen.length - batch.length,
     };
