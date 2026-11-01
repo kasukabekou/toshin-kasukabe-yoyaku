@@ -216,6 +216,24 @@ describe("pollMailbox 集計（census）", () => {
   });
 });
 
+describe("pollMailbox 集計の件名の傾向", () => {
+  it("本部発で条件に合わないメールだけを、数字を伏せて種類ごとに数える", async () => {
+    const mails = [
+      utf8Mail("メールマガジン 2026年11月号", "本文", "Notifier <sender@toshin.com>", "a"),
+      utf8Mail("メールマガジン 2026年10月号", "本文", "Notifier <sender@toshin.com>", "b"),
+      utf8Mail("システム保守のお知らせ", "本文", "Notifier <sender@toshin.com>", "c"),
+      utf8Mail(SUBJECT, BODY("w1")),
+      other("x"),
+    ];
+    const r = (await pollMailbox({ session: session(mails).s, dryRun: true, census: true, subjects: true })) as CensusSummary;
+    expect(r.subjectPatterns).toEqual([{ pattern: "メールマガジン #年#月号", count: 2 }, { pattern: "システム保守のお知らせ", count: 1 }]);
+    expect(JSON.stringify(r)).not.toMatch(/会議|山田/);
+    expect(Object.keys(db.tables)).toHaveLength(0);
+    const plain = (await pollMailbox({ session: session(mails).s, dryRun: true, census: true })) as CensusSummary;
+    expect(plain.subjectPatterns).toBeUndefined();
+  });
+});
+
 describe("pollMailbox ドライラン（実メールの安全な事前確認）", () => {
   it("DBに一切触れず、氏名・件名・本文を結果に含めない", async () => {
     const mails = [other("a"), utf8Mail(SUBJECT, BODY("web-1")), utf8Mail("[登録] 資料請求", "氏 = 山田")];

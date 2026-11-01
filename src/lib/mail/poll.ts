@@ -49,12 +49,15 @@ export interface DryRunSummary {
 export interface CensusSummary {
   dryRun: true;
   census: { mailboxCount: number; scanned: number; fromToshin: number; applicationLike: number; fromToshinNotApplication: number; unreadable: number };
+  // 申込通知の条件に合わない本部発メールの件名の傾向（数字を # に置き換え、30文字まで。件数の多い順）。subjects=1 のときだけ
+  subjectPatterns?: { pattern: string; count: number }[];
 }
 
 export interface PollOptions {
   dryRun?: boolean;
   last?: number; // ドライラン：新しい方から何通を確認するか
   census?: boolean; // ドライラン：ヘッダーだけで、申込通知の条件に合うメールの件数を数える
+  subjects?: boolean; // 集計に、条件に合わない本部発メールの件名の傾向を加える
   session?: PopSession;
 }
 
@@ -75,10 +78,14 @@ function openSession(opts: PollOptions): PopSession {
 
 const CENSUS_MAX = 80; // 1回の実行時間（30秒）に収まる上限
 
-async function census(client: PopSession, last: number): Promise<CensusSummary> {
+// 件名を種類ごとにまとめるための正規化。数字（日付・番号）を # にして、先頭30文字だけ使う。
+export const subjectPattern = (subject: string) => subject.normalize("NFKC").replace(/\d+/g, "#").replace(/\s+/g, " ").trim().slice(0, 30);
+
+async function census(client: PopSession, last: number, withSubjects: boolean): Promise<CensusSummary> {
   const list = await client.uidl();
   const picked = list.slice(-Math.min(Math.max(last, 1), CENSUS_MAX));
   const c = { mailboxCount: list.length, scanned: picked.length, fromToshin: 0, applicationLike: 0, fromToshinNotApplication: 0, unreadable: 0 };
+  const patterns = new Map<string, number>();
   for (const m of picked) {
     try {
       const raw = client.top ? await client.top(m.n, 0) : await client.retr(m.n);
@@ -86,12 +93,16 @@ async function census(client: PopSession, last: number): Promise<CensusSummary> 
       const fromToshin = /toshin.com/i.test(from);
       if (fromToshin) c.fromToshin++;
       if (isApplicationMail(subject, from)) c.applicationLike++;
-      else if (fromToshin) c.fromToshinNotApplication++;
+      else if (fromToshin) {
+        c.fromToshinNotApplication++;
+        if (withSubjects) patterns.set(subjectPattern(subject), (patterns.get(subjectPattern(subject)) ?? 0) + 1);
+      }
     } catch {
       c.unreadable++;
     }
   }
-  return { dryRun: true, census: c };
+  const subjectPatterns = withSubjects ? [...patterns].map(([pattern, count]) => ({ pattern, count })).sort((a, b) => b.count - a.count).slice(0, 20) : undefined;
+  return { dryRun: true, census: c, ...(subjectPatterns ? { subjectPatterns } : {}) };
 }
 
 // 取り込みの予行演習。DBには一切書かず（読みもせず）、新しい方から数通を解析して「どう扱われるか」だけを返す。
@@ -124,7 +135,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
   const client = openSession(opts);
   try {
     await client.connect();
-    if (opts.dryRun && opts.census) return await census(client, opts.last ?? CENSUS_MAX);
+    if (opts.dryRun && opts.census) return await census(client, opts.last ?? CENSUS_MAX, !!opts.subjects);
     if (opts.dryRun) return await dryRun(client, opts.last ?? DRY_RUN_DEFAULT);
 
     const list = await client.uidl();
