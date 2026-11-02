@@ -1,0 +1,24 @@
+name: Mail Watchdog
+
+# 申込メールの自動取込（外部の定期実行サービスが1分おきに実行）が止まっていないかを見張る。
+# 最後の成功が20分より古ければ、アプリが Slack へ通知する。取込を実行する仕組みとは別系統で動く。
+# GitHub の Secrets に MAIL_CRON_SECRET が未設定の間は、何もせず成功扱いで終わる。
+
+on:
+  schedule:
+    - cron: "*/30 * * * *" # 30分おき（GitHub の定期実行は数分〜十数分遅れることがある）
+  workflow_dispatch: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check mail poll is alive
+        env:
+          MAIL_CRON_SECRET: ${{ secrets.MAIL_CRON_SECRET }}
+        run: |
+          if [ -z "$MAIL_CRON_SECRET" ]; then
+            echo "::notice::MAIL_CRON_SECRET が未設定のため、見張りをスキップしました"
+            exit 0
+          fi
+          curl -sSf -H "x-ingest-secret: $MAIL_CRON_SECRET" https://toshin-kasukabe-yoyaku.vercel.app/api/mail/watchdog
