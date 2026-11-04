@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
-import { patternForRawType } from "@/lib/booking/logic";
+import { gradeGroupForGrade, patternForRawType } from "@/lib/booking/logic";
 import { clientIp } from "@/lib/http/clientIp";
 import { generateApplicationToken, generateId } from "@/lib/schedule/token";
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   }
 
   const pattern = patternForRawType(rawType);
-  const gradeGroup = pattern === "A" ? null : grade === "高3" ? "g3" : "g12";
+  const gradeGroup = pattern === "A" ? null : gradeGroupForGrade(grade);
 
   const applicationId = generateId("app");
   // 生徒は申込と1対1で作成（007の移行と同じ命名）。名寄せは自動で行わずスタッフ確認に回す。
