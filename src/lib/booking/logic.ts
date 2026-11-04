@@ -4,6 +4,7 @@ import type {
   GradeGroup, SubjectKey, SubjectKeyG3, SubjectKeyG12,
   BusyBlock, ApplicationRawType, ApplicationPattern,
 } from "../types";
+import { isOffDayKey } from "./holidays";
 
 // --- 営業時間 ---
 export const BUSINESS_HOURS = {
@@ -14,12 +15,12 @@ export const BUSINESS_HOURS = {
 
 // 季節ごとの特別営業時間・休館日。シーズンが変わるたびに更新が必要。
 // 2026年夏期時間割：曜日を問わず8:00〜22:00（〜8/31）。8/11〜8/13は休館日。
-const SPECIAL_HOURS_RANGES: { start: string; end: string; startHour: number; startMin: number; endHour: number; endMin: number }[] = [
+export const SPECIAL_HOURS_RANGES: { start: string; end: string; startHour: number; startMin: number; endHour: number; endMin: number }[] = [
   { start: "2026-01-01", end: "2026-08-31", startHour: 8, startMin: 0, endHour: 22, endMin: 0 },
 ];
 const CLOSED_DATES = ["2026-08-11", "2026-08-12", "2026-08-13"];
 
-function dateKey(date: Date): string {
+export function dateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
@@ -49,7 +50,8 @@ export function businessHoursFor(date: Date): { start: Date; end: Date } {
   }
 
   const day = date.getDay(); // 0=日 1=月 ... 6=土
-  const rule = day === 0 ? BUSINESS_HOURS.sun : day === 6 ? BUSINESS_HOURS.sat : BUSINESS_HOURS.weekday;
+  // 祝日は日曜と同じ営業時間（19時閉館）
+  const rule = day === 0 || isOffDayKey(key) ? BUSINESS_HOURS.sun : day === 6 ? BUSINESS_HOURS.sat : BUSINESS_HOURS.weekday;
   const start = new Date(date);
   start.setHours(rule.startHour, rule.startMin, 0, 0);
   const end = new Date(date);
@@ -132,6 +134,11 @@ export const CALENDAR_SUBJECT_LABELS: Record<SubjectKey, string> = {
   japanese_history: "日本史", world_history: "世界史", geography: "地理", ethics_politics: "倫理政経",
   kokugo_g12: "国語", math_g12: "数学", eigo_g12: "英語",
 };
+
+// 学力診断テストの種別。高1は基礎力型、高2・高3は共テ型。
+export function gradeGroupForGrade(grade: string): GradeGroup {
+  return grade === "高1" ? "g12" : "g3";
+}
 
 export function testTypeLabelForGradeGroup(gradeGroup: GradeGroup): string {
   return gradeGroup === "g3" ? "共テ" : "基礎力";
@@ -278,6 +285,7 @@ export function recommendRikaCount(
 export const INTERVIEW_MINUTES = 90;
 
 // 面談は校舎の営業時間帯とは切り離し、担当者の負担を考慮して10:00〜21:30の固定枠から選べるようにする。
+// 日曜・祝日（19時閉館）は、最終枠を18:00開始（19:30終了）までとする。
 // 休館日はテスト等と同様に対応不可（0分）とする。
 function interviewHoursFor(date: Date): { start: Date; end: Date } {
   if (isClosedDate(date)) {
@@ -288,7 +296,8 @@ function interviewHoursFor(date: Date): { start: Date; end: Date } {
   const start = new Date(date);
   start.setHours(10, 0, 0, 0);
   const end = new Date(date);
-  end.setHours(21, 30, 0, 0);
+  if (date.getDay() === 0 || isOffDayKey(dateKey(date))) end.setHours(19, 30, 0, 0);
+  else end.setHours(21, 30, 0, 0);
   return { start, end };
 }
 
