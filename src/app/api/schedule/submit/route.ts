@@ -109,9 +109,12 @@ export async function POST(request: NextRequest) {
 
     // 予約行はカレンダー登録より先に入れる。面談の重複はDBの排他制約で弾き、
     // 弾かれた場合はカレンダーに何も作らずに済ませる。
+    const studentId = resolved.application.studentId;
     const testRows = testSegments.map((seg, i) => ({
       id: `appt_${applicationId}_test_${i}`,
       application_id: applicationId,
+      student_id: studentId,
+      purpose: "学力診断テスト",
       kind: "test",
       start_at: seg.startAt,
       end_at: seg.endAt,
@@ -122,6 +125,8 @@ export async function POST(request: NextRequest) {
       ? {
           id: `appt_${applicationId}_interview`,
           application_id: applicationId,
+          student_id: studentId,
+          purpose: "初回三者面談",
           kind: "interview",
           start_at: interviewSlot.startAt,
           end_at: interviewSlot.endAt,

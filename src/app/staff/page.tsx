@@ -40,7 +40,7 @@ export default async function StaffPage() {
   const [{ data: hearingRows }, { data: subjectRows }, { data: apptRows }] = await Promise.all([
     supabaseAdmin.from("schedule_hearing_answers").select("*").in("application_id", ids.length ? ids : ["-"]),
     supabaseAdmin.from("schedule_test_subject_selections").select("*").in("application_id", ids.length ? ids : ["-"]).order("subject_order"),
-    supabaseAdmin.from("schedule_appointments").select("*").in("application_id", ids.length ? ids : ["-"]).order("start_at"),
+    supabaseAdmin.from("schedule_appointments").select("*").eq("status", "booked").in("application_id", ids.length ? ids : ["-"]).order("start_at"),
   ]);
 
   const hearingByApp = new Map((hearingRows ?? []).map((r) => [r.application_id as string, r]));

@@ -58,6 +58,22 @@ export async function POST(request: NextRequest) {
   const gradeGroup = pattern === "A" ? null : grade === "高3" ? "g3" : "g12";
 
   const applicationId = generateId("app");
+  // 生徒は申込と1対1で作成（007の移行と同じ命名）。名寄せは自動で行わずスタッフ確認に回す。
+  const studentId = `stu_${applicationId}`;
+  const { error: studentError } = await supabaseAdmin.from("schedule_students").insert({
+    id: studentId,
+    name,
+    name_kana: nameKana,
+    school,
+    grade,
+    email,
+    phone,
+  });
+  if (studentError) {
+    // eslint-disable-next-line no-console
+    console.error("student insert failed", studentError);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
+  }
   const { error: appError } = await supabaseAdmin.from("schedule_applications").insert({
     id: applicationId,
     pattern,
@@ -72,10 +88,24 @@ export async function POST(request: NextRequest) {
     grade_group: gradeGroup,
     arrival_constraint_note: null,
     ip_address: ip === "unknown" ? null : ip,
+    student_id: studentId,
   });
   if (appError) {
     // eslint-disable-next-line no-console
     console.error("application insert failed", appError);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
+  }
+
+  const { error: enrollError } = await supabaseAdmin.from("schedule_enrollments").insert({
+    id: `enr_${applicationId}`,
+    student_id: studentId,
+    application_id: applicationId,
+    raw_type: rawType,
+    channel: "form",
+  });
+  if (enrollError) {
+    // eslint-disable-next-line no-console
+    console.error("enrollment insert failed", enrollError);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 

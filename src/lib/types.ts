@@ -32,6 +32,7 @@ export interface Application {
   relation: ApplicantRelation;
   gradeGroup: GradeGroup | null; // パターンA（特別公開授業）は null
   arrivalConstraintNote: string | null;
+  studentId: ID | null; // 管理プラットフォームの生徒ID（007移行前の申込はnull）
   createdAt: ISODate;
 }
 
