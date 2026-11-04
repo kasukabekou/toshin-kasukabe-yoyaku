@@ -22,6 +22,7 @@ export interface IntakeRow {
   channel: string;
   eventName: string | null;
   primaryStaffId: string | null;
+  enrolled: boolean;
   applicationId: string | null;
   lastContact: { result: ContactResult; contactedAt: string; staffId: string | null; content: string } | null;
   test: { id: string; startAt: string; assignedStaffId: string | null } | null;
@@ -41,7 +42,7 @@ export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: str
   if (error) return { rows: [], error: error.message };
 
   const ids = (students ?? []).map((s) => s.id as string);
-  const [enr, appts, outs, logs, tasks, settings, events] = await Promise.all([
+  const [enr, appts, outs, logs, tasks, settings, events, profiles] = await Promise.all([
     supabaseAdmin.from("schedule_enrollments").select("*").in("student_id", inList(ids)).order("created_at", { ascending: false }),
     supabaseAdmin.from("schedule_appointments").select("*").in("student_id", inList(ids)).order("start_at"),
     supabaseAdmin.from("schedule_outcomes").select("student_id, appointment_id, result").in("student_id", inList(ids)),
@@ -49,8 +50,9 @@ export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: str
     supabaseAdmin.from("schedule_tasks").select("*").in("student_id", inList(ids)).in("status", ["todo", "doing"]),
     supabaseAdmin.from("schedule_type_settings").select("*"),
     supabaseAdmin.from("schedule_events").select("id, name"),
+    supabaseAdmin.from("schedule_student_profiles").select("student_id").eq("enrollment_status", "enrolled").in("student_id", inList(ids)),
   ]);
-  const err = [enr, appts, outs, logs, tasks, settings, events].find((r) => r.error)?.error;
+  const err = [enr, appts, outs, logs, tasks, settings, events, profiles].find((r) => r.error)?.error;
   if (err) return { rows: [], error: err.message };
 
   const group = <T extends Record<string, unknown>>(rows: T[] | null, key: string) => {
@@ -68,6 +70,7 @@ export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: str
   const taskBy = group(tasks.data, "student_id");
   const settingBy = new Map((settings.data ?? []).map((s) => [s.raw_type as string, s]));
   const eventBy = new Map((events.data ?? []).map((e) => [e.id as string, e.name as string]));
+  const enrolledIds = new Set((profiles.data ?? []).map((p) => p.student_id as string));
   const today = jstToday();
 
   const all: IntakeRow[] = (students ?? []).map((s) => {
@@ -116,6 +119,7 @@ export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: str
       channel: (e?.channel as string) ?? "",
       eventName: e?.event_id ? eventBy.get(e.event_id as string) ?? null : null,
       primaryStaffId: (s.primary_staff_id as string | null) ?? null,
+      enrolled: enrolledIds.has(sid),
       lastContact,
       test: upcoming("test"),
       interview: upcoming("interview"),

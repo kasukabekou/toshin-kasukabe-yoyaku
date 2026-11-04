@@ -57,6 +57,7 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState("");
+  const [enrolled, setEnrolled] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,15 +75,16 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
         (!grade || r.grade === grade) &&
         (!phone || r.status.contact === phone) &&
         (!channel || r.channel === channel) &&
+        (!enrolled || (enrolled === "yes") === r.enrolled) &&
         inRange(r.appliedAt, from, to)
     );
-  }, [rows, keyword, rawType, grade, phone, channel, from, to]);
+  }, [rows, keyword, rawType, grade, phone, channel, enrolled, from, to]);
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t, base.filter((r) => matchesFilter(r.status, t)).length])) as Record<IntakeFilter, number>, [base]);
   const shown = base.filter((r) => matchesFilter(r.status, tab));
   const selected = rows.find((r) => r.studentId === selectedId) ?? null;
   const rawTypes = [...new Set(rows.map((r) => r.rawType).filter(Boolean))];
   const grades = [...new Set(rows.map((r) => r.grade).filter(Boolean))].sort();
-  const filtered = Boolean(keyword || rawType || grade || phone || channel || from || to);
+  const filtered = Boolean(keyword || rawType || grade || phone || channel || enrolled || from || to);
 
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[1fr_340px]">
@@ -129,6 +131,14 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
             </Select>
           </label>
           <label>
+            <span className="mb-1 block text-mutedfg">入学</span>
+            <Select value={enrolled} onChange={(e) => setEnrolled(e.target.value)}>
+              <option value="">すべて</option>
+              <option value="yes">入学済</option>
+              <option value="no">未入学</option>
+            </Select>
+          </label>
+          <label>
             <span className="mb-1 block text-mutedfg">申込日（から）</span>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </label>
@@ -143,7 +153,7 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
               {Object.entries(CONTACT_RESULT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
           </label>
-          <Button type="button" variant="secondary" disabled={!filtered} onClick={() => { setKeyword(""); setRawType(""); setGrade(""); setPhone(""); setChannel(""); setFrom(""); setTo(""); }}>
+          <Button type="button" variant="secondary" disabled={!filtered} onClick={() => { setKeyword(""); setRawType(""); setGrade(""); setPhone(""); setChannel(""); setEnrolled(""); setFrom(""); setTo(""); }}>
             条件をクリア
           </Button>
         </div>
@@ -236,7 +246,7 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-mutedfg">{shown.length}件を表示（全{rows.length}件）。行をクリックすると右に操作パネルが開きます。</p>
+        <p className="text-xs text-mutedfg">{shown.length}件を表示（全{rows.length}件、うち入学済{rows.filter((r) => r.enrolled).length}件）。行をクリックすると右に操作パネルが開きます。</p>
       </div>
 
       <aside className="xl:sticky xl:top-4">
