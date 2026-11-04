@@ -42,12 +42,23 @@ function Stage({ state, at }: { state: StageState; at: string | null }) {
   );
 }
 
+// 申込日（日本時間の日付）が from〜to（yyyy-mm-dd、両端含む）に入るか
+const jstDay = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+const inRange = (iso: string, from: string, to: string) => {
+  if (!from && !to) return true;
+  const d = jstDay(iso);
+  return (!from || d >= from) && (!to || d <= to);
+};
+
 export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: { id: string; name: string }[]; today: string }) {
   const [tab, setTab] = useState<IntakeFilter>("all");
   const [keyword, setKeyword] = useState("");
   const [rawType, setRawType] = useState("");
   const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
+  const [channel, setChannel] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setChecked((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -61,15 +72,17 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
         (!k || `${r.name}${r.nameKana}${r.school}`.includes(k)) &&
         (!rawType || r.rawType === rawType) &&
         (!grade || r.grade === grade) &&
-        (!phone || r.status.contact === phone)
+        (!phone || r.status.contact === phone) &&
+        (!channel || r.channel === channel) &&
+        inRange(r.appliedAt, from, to)
     );
-  }, [rows, keyword, rawType, grade, phone]);
+  }, [rows, keyword, rawType, grade, phone, channel, from, to]);
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t, base.filter((r) => matchesFilter(r.status, t)).length])) as Record<IntakeFilter, number>, [base]);
   const shown = base.filter((r) => matchesFilter(r.status, tab));
   const selected = rows.find((r) => r.studentId === selectedId) ?? null;
   const rawTypes = [...new Set(rows.map((r) => r.rawType).filter(Boolean))];
   const grades = [...new Set(rows.map((r) => r.grade).filter(Boolean))].sort();
-  const filtered = Boolean(keyword || rawType || grade || phone);
+  const filtered = Boolean(keyword || rawType || grade || phone || channel || from || to);
 
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[1fr_340px]">
@@ -108,13 +121,29 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
             </Select>
           </label>
           <label>
+            <span className="mb-1 block text-mutedfg">申込経路</span>
+            <Select value={channel} onChange={(e) => setChannel(e.target.value)}>
+              <option value="">すべて</option>
+              <option value="mail">メール（Outlook取込）</option>
+              <option value="form">フォーム</option>
+            </Select>
+          </label>
+          <label>
+            <span className="mb-1 block text-mutedfg">申込日（から）</span>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>
+            <span className="mb-1 block text-mutedfg">申込日（まで）</span>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <label>
             <span className="mb-1 block text-mutedfg">電話状況</span>
             <Select value={phone} onChange={(e) => setPhone(e.target.value)}>
               <option value="">すべて</option>
               {Object.entries(CONTACT_RESULT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
           </label>
-          <Button type="button" variant="secondary" disabled={!filtered} onClick={() => { setKeyword(""); setRawType(""); setGrade(""); setPhone(""); }}>
+          <Button type="button" variant="secondary" disabled={!filtered} onClick={() => { setKeyword(""); setRawType(""); setGrade(""); setPhone(""); setChannel(""); setFrom(""); setTo(""); }}>
             条件をクリア
           </Button>
         </div>
