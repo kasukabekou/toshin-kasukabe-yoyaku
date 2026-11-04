@@ -53,7 +53,7 @@ export async function ingestMail(input: { subject: string; body: string; from?: 
   );
   if (sErr) return { status: "error", message: sErr.message };
   const { error: eErr } = await supabaseAdmin.from("schedule_enrollments").upsert(
-    { id: `enr_mail_${h}`, student_id: studentId, raw_type: d.rawType, channel: "mail", ...(d.submittedAt ? { created_at: d.submittedAt } : {}) },
+    { id: `enr_mail_${h}`, student_id: studentId, raw_type: d.rawType, channel: "mail", ...((d.submittedAt ?? receivedAt) ? { created_at: d.submittedAt ?? receivedAt } : {}) },
     { onConflict: "id", ignoreDuplicates: true }
   );
   if (eErr) return { status: "error", message: eErr.message };
