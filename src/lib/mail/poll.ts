@@ -29,6 +29,7 @@ export interface PollSummary {
   skippedFromToshin: number; // 送信元は本部だが申込通知の形式に合わず読み飛ばした数。0でなければ形式変更の疑い
   unreadable: number;
   remaining: number;
+  newApplications?: string[]; // 今回新しく登録した申込の概要（Slack通知用。無ければ省略）
 }
 
 export interface DryRunItem {
@@ -220,6 +221,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
     let skipped = 0;
     let skippedFromToshin = 0;
     let unreadable = 0;
+    const newApplications: string[] = [];
     for (const m of batch) {
       let note = "skipped";
       let mail: Awaited<ReturnType<typeof parseRaw>> | null = null;
@@ -234,6 +236,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
         const r = await ingestMail(mail);
         if (r.status === "error") throw new Error(r.message); // 確認済みにせず止め、次回再試行する
         tally.set(r.status, (tally.get(r.status) ?? 0) + 1);
+        if (r.status === "registered") newApplications.push(r.label);
         note = "ingested";
       } else if (mail) {
         skipped++;
@@ -248,6 +251,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
       skippedFromToshin,
       unreadable,
       remaining: unseen.length - batch.length,
+      ...(newApplications.length ? { newApplications } : {}),
     };
   } finally {
     await client.quit();

@@ -2,10 +2,11 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { audit } from "@/lib/manage/server";
+import { RAW_TYPE_LABELS } from "@/lib/booking/logic";
 import { parseApplicationMail } from "./parseApplicationMail";
 
 export type IngestOutcome =
-  | { status: "registered" | "duplicate"; studentId: string; missing: string[] }
+  | { status: "registered" | "duplicate"; studentId: string; missing: string[]; label: string }
   | { status: "needs_review"; reason: string }
   | { status: "error"; message: string };
 
@@ -60,5 +61,6 @@ export async function ingestMail(input: { subject: string; body: string; from?: 
   // 途中で失敗して再試行した場合（duplicate）も、取込記録と生徒の紐づけは必ず揃える（何度実行しても同じ結果）
   await supabaseAdmin.from("schedule_mail_ingests").update({ student_id: studentId }).eq("id", `mail_${h}`);
   if (!duplicate) await audit("schedule_students", studentId, "insert", null, { via: "mail", rawType: d.rawType });
-  return { status: duplicate ? "duplicate" : "registered", studentId, missing: d.missing };
+  const label = `${RAW_TYPE_LABELS[d.rawType as keyof typeof RAW_TYPE_LABELS] ?? d.rawType}　${d.name ?? "（氏名不明）"}（${d.school ?? ""}${d.grade ?? ""}）`;
+  return { status: duplicate ? "duplicate" : "registered", studentId, missing: d.missing, label };
 }
