@@ -48,7 +48,11 @@ async function handle(request: Request) {
     if (review > 0) {
       await sendSlack(`⚠️ 読み取れない申込通知が${review}件ありました（登録されていません）。内容を確認してください。\n（Supabase の schedule_mail_ingests で status が needs_review の行）`);
     }
-    return NextResponse.json({ ok: true, ...result });
+    const { newApplications, ...rest } = result;
+    if (newApplications?.length) {
+      await sendSlack(`📩 新しい申込が${newApplications.length}件ありました。\n${newApplications.map((l) => `・${l}`).join("\n")}\n（募集管理画面 /staff/intake で確認できます）`);
+    }
+    return NextResponse.json({ ok: true, ...rest });
   } catch (e) {
     console.error("mail poll failed");
     // 失敗したメールは「確認済み」にしていないので、次回の実行が自動でやり直す（再試行）
