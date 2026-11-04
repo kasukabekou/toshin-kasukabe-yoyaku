@@ -7,6 +7,7 @@ import { ContactForm } from "../../intake/ContactForm";
 import { DeleteButton } from "@/components/staff/DeleteButton";
 import { TaskRow } from "./TaskRow";
 import { AppointmentRow } from "./AppointmentRow";
+import { EnrollmentPanel } from "./EnrollmentPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,13 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
   const { data: student } = await supabaseAdmin.from("schedule_students").select("*").eq("id", id).maybeSingle();
   if (!student) notFound();
 
-  const [logs, tasks, appts, outs, staff] = await Promise.all([
+  const [logs, tasks, appts, outs, staff, profile] = await Promise.all([
     supabaseAdmin.from("schedule_contact_logs").select("*").eq("student_id", id).order("contacted_at", { ascending: false }),
     supabaseAdmin.from("schedule_tasks").select("*").eq("student_id", id).order("created_at", { ascending: false }),
     supabaseAdmin.from("schedule_appointments").select("*").eq("student_id", id).order("start_at"),
     supabaseAdmin.from("schedule_outcomes").select("*").eq("student_id", id).order("occurred_at", { ascending: false }),
     supabaseAdmin.from("schedule_staff_members").select("id, name"),
+    supabaseAdmin.from("schedule_student_profiles").select("enrollment_status, enrolled_at").eq("student_id", id).maybeSingle(),
   ]);
   const staffName = new Map((staff.data ?? []).map((s) => [s.id as string, s.name as string]));
   const who = (sid: unknown) => (sid ? staffName.get(sid as string) ?? "不明" : "未設定");
@@ -44,6 +46,7 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
           {student.school} {student.grade} ・ {student.email} ・ {student.phone} ・ 主担当: {who(student.primary_staff_id)}
         </p>
         {missing.length > 0 && <p className="mt-1 text-xs text-amber-700">未入力: {missing.join("、")}</p>}
+        <EnrollmentPanel studentId={id} enrolledAt={profile.data?.enrollment_status === "enrolled" ? (profile.data.enrolled_at as string | null) ?? new Date().toISOString() : null} />
         <div className="mt-3">
           <DeleteButton
             label="この生徒を削除"
