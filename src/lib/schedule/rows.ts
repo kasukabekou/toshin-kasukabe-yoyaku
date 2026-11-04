@@ -17,6 +17,7 @@ export function applicationFromRow(row: Record<string, unknown>): Application {
     relation: row.relation as Application["relation"],
     gradeGroup: (row.grade_group as Application["gradeGroup"]) ?? null,
     arrivalConstraintNote: (row.arrival_constraint_note as string | null) ?? null,
+    studentId: (row.student_id as string | null) ?? null,
     createdAt: row.created_at as string,
   };
 }
