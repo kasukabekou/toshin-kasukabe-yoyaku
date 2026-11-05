@@ -7,7 +7,7 @@ const ITEMS: { href?: string; label: string }[] = [
   { href: "/staff/visits", label: "来校・対応予定" },
   { href: "/staff/intake", label: "申込〜三者面談" },
   { href: "/staff/attack", label: "体験生アタックリスト" },
-  { label: "イベント進捗" },
+  { href: "/staff/events", label: "イベント進捗" },
   { href: "/staff", label: "申込一覧(元データ)" },
 ];
 
