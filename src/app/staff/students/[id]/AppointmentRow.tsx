@@ -16,7 +16,7 @@ interface Appt {
   version: number;
 }
 
-const KIND_LABELS: Record<string, string> = { test: "学力診断テスト", interview: "初回三者面談", briefing: "説明会", trial: "体験", lecture: "受講", call: "電話" };
+const KIND_LABELS: Record<string, string> = { test: "学力診断テスト", interview: "初回三者面談", briefing: "説明会", trial: "体験", lecture: "受講", call: "電話", visit: "来校" };
 const STATUS_LABELS: Record<string, string> = { booked: "予約中", rescheduled: "日程変更済", cancelled: "取消" };
 
 // 予定担当の設定と、実績（実施済・欠席・中止）の記録。実績は予定とは別に保存する。

@@ -16,6 +16,8 @@ export function ContactForm({ studentId }: { studentId: string }) {
   const [taskContent, setTaskContent] = useState("");
   const [taskStaff, setTaskStaff] = useState<string | null>(null);
   const [dueOn, setDueOn] = useState("");
+  const [visitDate, setVisitDate] = useState("");
+  const [visitTime, setVisitTime] = useState("16:00");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,13 +33,29 @@ export function ContactForm({ studentId }: { studentId: string }) {
       staffId: actingStaff,
       nextTask: taskContent ? { content: taskContent, assignedStaffId: taskStaff, dueOn: dueOn || null } : undefined,
     });
+    if (!r.ok) {
+      setBusy(false);
+      return setMessage(r.message);
+    }
+    // 次回来校日が入っていれば来校予定として登録（来校・対応予定の「明日の来校予定」などに載る）
+    if (visitDate) {
+      const startAt = new Date(`${visitDate}T${visitTime}:00+09:00`);
+      const v = await postJson("/api/staff/manage/appointments", {
+        clientId: `${clientId.current}v`, studentId, kind: "visit", purpose: "来校", staffId: actingStaff, assignedStaffId: taskStaff,
+        startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + 60 * 60000).toISOString(),
+      });
+      if (!v.ok) {
+        setBusy(false);
+        return setMessage(`連絡は保存しました。次回来校の登録に失敗: ${v.message}`);
+      }
+    }
     setBusy(false);
-    if (!r.ok) return setMessage(r.message);
     clientId.current = newClientId();
     setOpen(false);
     setContent("");
     setTaskContent("");
     setDueOn("");
+    setVisitDate("");
     router.refresh();
   }
 
@@ -61,6 +79,11 @@ export function ContactForm({ studentId }: { studentId: string }) {
       <Input placeholder="例: 15時ごろ再度架電" value={taskContent} onChange={(e) => setTaskContent(e.target.value)} />
       <StaffSelect value={taskStaff} onChange={setTaskStaff} placeholder="担当(未設定)" />
       <Input type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} />
+      <p className="font-medium text-fg">次回来校予定(任意)</p>
+      <div className="flex gap-2">
+        <Input type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
+        <Input type="time" value={visitTime} onChange={(e) => setVisitTime(e.target.value)} className="w-28" />
+      </div>
       <RecorderField value={actingStaff} onChange={setActingStaff} />
       {message && <p className="text-red-600">{message}</p>}
       <div className="flex gap-2">
