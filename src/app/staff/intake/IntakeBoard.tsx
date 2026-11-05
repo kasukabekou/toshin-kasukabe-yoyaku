@@ -50,6 +50,8 @@ const inRange = (iso: string, from: string, to: string) => {
   return (!from || d >= from) && (!to || d <= to);
 };
 
+type SortKey = "name" | "applied" | "contact" | "test" | "interview" | "task" | "staff";
+
 export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: { id: string; name: string }[]; today: string }) {
   const [tab, setTab] = useState<IntakeFilter>("all");
   const [keyword, setKeyword] = useState("");
@@ -60,6 +62,7 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
   const [enrolled, setEnrolled] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setChecked((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -80,7 +83,33 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
     );
   }, [rows, keyword, rawType, grade, phone, channel, enrolled, from, to]);
   const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [t, base.filter((r) => matchesFilter(r.status, t)).length])) as Record<IntakeFilter, number>, [base]);
-  const shown = base.filter((r) => matchesFilter(r.status, tab));
+  const filteredRows = base.filter((r) => matchesFilter(r.status, tab));
+  // 見出しクリックで並べ替え。値が無い行（予約なし・担当なし等）は昇順・降順どちらでも末尾。
+  const shown = useMemo(() => {
+    if (!sort) return filteredRows;
+    const contactOrder = Object.keys(CONTACT_RESULT_LABELS);
+    const keyOf = (r: IntakeRow): string | number | null => {
+      switch (sort.key) {
+        case "name": return r.nameKana || r.name;
+        case "applied": return r.appliedAt;
+        case "contact": return contactOrder.indexOf(r.status.contact);
+        case "test": return r.test?.startAt ?? null;
+        case "interview": return r.interview?.startAt ?? null;
+        case "task": return r.openTasks[0]?.dueOn ?? null;
+        case "staff": { const id = r.openTasks[0]?.assignedStaffId ?? r.primaryStaffId; return id ? staffName.get(id) ?? "不明" : null; }
+      }
+    };
+    return [...filteredRows].sort((a, b) => {
+      const x = keyOf(a), y = keyOf(b);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ja");
+      return sort.desc ? -c : c;
+    });
+  }, [filteredRows, sort, staffName]);
+  const toggleSort = (key: SortKey) => setSort((cur) => (cur?.key !== key ? { key, desc: false } : cur.desc ? null : { key, desc: true }));
+  const arrow = (key: SortKey) => (sort?.key === key ? (sort.desc ? " ▼" : " ▲") : "");
   const selected = rows.find((r) => r.studentId === selectedId) ?? null;
   const rawTypes = [...new Set(rows.map((r) => r.rawType).filter(Boolean))];
   const grades = [...new Set(rows.map((r) => r.grade).filter(Boolean))].sort();
@@ -181,9 +210,19 @@ export function IntakeBoard({ rows, staff, today }: { rows: IntakeRow[]; staff: 
                 <th className="w-8 px-3 py-2.5">
                   <input type="checkbox" aria-label="表示中をすべて選択" checked={shown.length > 0 && shown.every((r) => checked.has(r.studentId))} onChange={(e) => setChecked(e.target.checked ? new Set(shown.map((r) => r.studentId)) : new Set())} />
                 </th>
-                {["生徒 / 申込種別", "電話状況", "学力テスト", "初回三者面談", "次の対応", "担当", "操作"].map((h) => (
-                  <th key={h} className="px-3 py-2.5 font-medium">{h}</th>
+                <th className="px-3 py-2.5 font-medium">
+                  <button type="button" onClick={() => toggleSort("name")} className="hover:text-fg">生徒{arrow("name")}</button>
+                  {" / 申込種別 / "}
+                  <button type="button" onClick={() => toggleSort("applied")} className="hover:text-fg">申込日{arrow("applied")}</button>
+                </th>
+                {(
+                  [["電話状況", "contact"], ["学力テスト", "test"], ["初回三者面談", "interview"], ["次の対応", "task"], ["担当", "staff"]] as [string, SortKey][]
+                ).map(([h, k]) => (
+                  <th key={k} className="px-3 py-2.5 font-medium">
+                    <button type="button" onClick={() => toggleSort(k)} className="hover:text-fg">{h}{arrow(k)}</button>
+                  </th>
                 ))}
+                <th className="px-3 py-2.5 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
