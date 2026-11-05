@@ -50,3 +50,11 @@ export function fmtDateTime(iso: string): string {
 export function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 }
+
+export const APPOINTMENT_KIND_LABELS: Record<string, string> = {
+  test: "学力診断テスト", interview: "初回三者面談", briefing: "説明会", trial: "体験", lecture: "受講", call: "電話", visit: "来校",
+};
+
+export function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
+}
