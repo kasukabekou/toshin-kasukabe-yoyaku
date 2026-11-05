@@ -86,7 +86,7 @@ export interface PollOptions {
   session?: PopSession;
 }
 
-async function parseRaw(raw: Buffer) {
+export async function parseRaw(raw: Buffer) {
   const parsed = await simpleParser(raw);
   const subject = parsed.subject ?? "";
   const from = parsed.from?.value?.[0]?.address ?? "";
