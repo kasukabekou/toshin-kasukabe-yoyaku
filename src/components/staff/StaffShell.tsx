@@ -4,9 +4,7 @@ import { LogoutButton } from "@/app/staff/LogoutButton";
 // 管理画面の共通枠：左にサイドメニュー、上に記入者とログアウト。
 // href が無い項目は未実装（準備中）として表示のみ。
 const ITEMS: { href?: string; label: string }[] = [
-  { href: "/staff/visits", label: "来校・対応予定" },
   { href: "/staff/intake", label: "申込〜三者面談" },
-  { href: "/staff/attack", label: "体験生アタックリスト" },
   { href: "/staff/events", label: "イベント進捗" },
   { href: "/staff/applications", label: "申込一覧(元データ)" },
 ];
