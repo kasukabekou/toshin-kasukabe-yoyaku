@@ -11,13 +11,15 @@ const ITEMS: { href?: string; label: string }[] = [
   { href: "/staff/applications", label: "申込一覧(元データ)" },
 ];
 
+const MANAGEMENT_UI = () => process.env.STAFF_MANAGEMENT_UI === "1";
+
 export function StaffShell({ active, children }: { active: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="shrink-0 border-b border-border bg-surface md:w-56 md:border-b-0 md:border-r">
         <p className="px-4 py-4 text-sm font-semibold text-fg">春日部校 募集管理</p>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
-          {ITEMS.map((i) =>
+          {ITEMS.filter((i) => MANAGEMENT_UI() || i.href === "/staff/applications").map((i) =>
             i.href ? (
               <Link
                 key={i.label}

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// 管理画面のトップは「申込〜三者面談」。旧URL(/staff)のブックマークやログイン後の遷移を受ける。
+// /staff の入口。募集管理を使える環境（ローカル）は「申込〜三者面談」、公開環境は申込一覧へ。
 export default function StaffIndex() {
-  redirect("/staff/intake");
+  redirect(process.env.STAFF_MANAGEMENT_UI === "1" ? "/staff/intake" : "/staff/applications");
 }
