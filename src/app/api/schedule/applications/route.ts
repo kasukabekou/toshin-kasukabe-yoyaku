@@ -25,6 +25,22 @@ const createSchema = z.object({
   website: z.string().max(200).optional().default(""),
 });
 
+// 途中で失敗したとき、作りかけの行を片付ける（生徒だけ残って再申込で二重登録になるのを防ぐ）。
+// 子テーブルから順に消す。片付け自体の失敗は握りつぶさずログに残す。
+async function cleanupPartial(applicationId: string, studentId: string) {
+  const steps = [
+    supabaseAdmin.from("schedule_tokens").delete().eq("application_id", applicationId),
+    supabaseAdmin.from("schedule_enrollments").delete().eq("application_id", applicationId),
+    supabaseAdmin.from("schedule_applications").delete().eq("id", applicationId),
+    supabaseAdmin.from("schedule_students").delete().eq("id", studentId),
+  ];
+  for (const step of steps) {
+    const { error } = await step;
+    // eslint-disable-next-line no-console
+    if (error) console.error("application cleanup failed", error);
+  }
+}
+
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30日
 const RATE_LIMIT_WINDOW_MS = 1000 * 60 * 10; // 10分
 const RATE_LIMIT_MAX = 5; // 同一IPから10分間に5件まで
@@ -93,6 +109,7 @@ export async function POST(request: NextRequest) {
   if (appError) {
     // eslint-disable-next-line no-console
     console.error("application insert failed", appError);
+    await cleanupPartial(applicationId, studentId);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
@@ -106,6 +123,7 @@ export async function POST(request: NextRequest) {
   if (enrollError) {
     // eslint-disable-next-line no-console
     console.error("enrollment insert failed", enrollError);
+    await cleanupPartial(applicationId, studentId);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
@@ -120,6 +138,7 @@ export async function POST(request: NextRequest) {
   if (tokenError) {
     // eslint-disable-next-line no-console
     console.error("token insert failed", tokenError);
+    await cleanupPartial(applicationId, studentId);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 

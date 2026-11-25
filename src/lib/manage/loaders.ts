@@ -31,26 +31,54 @@ export interface IntakeRow {
   status: IntakeStatus;
 }
 
-const inList = (ids: string[]) => (ids.length ? ids : ["-"]);
+// 取得上限の対策：PostgREST は1回で最大1000行しか返さず、.in() に大量のIDを渡すとURLが長すぎて失敗する。
+// IDを小分けにし、各回もページ分割して全件取得する。
+const ID_CHUNK = 100;
+const PAGE = 1000;
+type Rows = Record<string, unknown>[];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type QueryMod = (q: any) => any;
+
+async function selectIn(table: string, columns: string, column: string, ids: string[], mod: QueryMod = (q) => q): Promise<{ data: Rows; error: { message: string } | null }> {
+  const out: Rows = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await mod(supabaseAdmin.from(table).select(columns).in(column, chunk)).order("id").range(from, from + PAGE - 1); // idで順序を安定させる（ページ境界の重複・欠落防止）
+      if (error) return { data: [], error };
+      out.push(...((data ?? []) as Rows));
+      if ((data ?? []).length < PAGE) break;
+    }
+  }
+  return { data: out, error: null };
+}
 
 export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: string }> {
-  const { data: students, error } = await supabaseAdmin
-    .from("schedule_students")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(500);
-  if (error) return { rows: [], error: error.message };
+  // 生徒は全件を取得する（以前は新しい500人で打ち切っており、増えると古い申込が画面から消えていた）
+  const students: Rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from("schedule_students")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) return { rows: [], error: error.message };
+    students.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) break;
+  }
 
-  const ids = (students ?? []).map((s) => s.id as string);
+  const ids = students.map((s) => s.id as string);
+  const byDesc = (col: string): QueryMod => (q) => q.order(col, { ascending: false });
   const [enr, appts, outs, logs, tasks, settings, events, profiles] = await Promise.all([
-    supabaseAdmin.from("schedule_enrollments").select("*").in("student_id", inList(ids)).order("created_at", { ascending: false }),
-    supabaseAdmin.from("schedule_appointments").select("*").in("student_id", inList(ids)).order("start_at"),
-    supabaseAdmin.from("schedule_outcomes").select("student_id, appointment_id, result").in("student_id", inList(ids)),
-    supabaseAdmin.from("schedule_contact_logs").select("*").in("student_id", inList(ids)).order("contacted_at", { ascending: false }),
-    supabaseAdmin.from("schedule_tasks").select("*").in("student_id", inList(ids)).in("status", ["todo", "doing"]),
+    selectIn("schedule_enrollments", "*", "student_id", ids, byDesc("created_at")),
+    selectIn("schedule_appointments", "*", "student_id", ids, (q) => q.order("start_at")),
+    selectIn("schedule_outcomes", "student_id, appointment_id, result", "student_id", ids),
+    selectIn("schedule_contact_logs", "*", "student_id", ids, byDesc("contacted_at")),
+    selectIn("schedule_tasks", "*", "student_id", ids, (q) => q.in("status", ["todo", "doing"])),
     supabaseAdmin.from("schedule_type_settings").select("*"),
     supabaseAdmin.from("schedule_events").select("id, name"),
-    supabaseAdmin.from("schedule_student_profiles").select("student_id").eq("enrollment_status", "enrolled").in("student_id", inList(ids)),
+    selectIn("schedule_student_profiles", "student_id", "student_id", ids, (q) => q.eq("enrollment_status", "enrolled")),
   ]);
   const err = [enr, appts, outs, logs, tasks, settings, events, profiles].find((r) => r.error)?.error;
   if (err) return { rows: [], error: err.message };
@@ -73,7 +101,7 @@ export async function loadIntakeRows(): Promise<{ rows: IntakeRow[]; error?: str
   const enrolledIds = new Set((profiles.data ?? []).map((p) => p.student_id as string));
   const today = jstToday();
 
-  const all: IntakeRow[] = (students ?? []).map((s) => {
+  const all: IntakeRow[] = students.map((s) => {
     const sid = s.id as string;
     const e = enrBy.get(sid)?.[0];
     const rawType = (e?.raw_type as string) ?? "";
