@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { audit, dbError, parseBody } from "@/lib/manage/server";
+import { removeCalendarEvents } from "@/lib/manage/calendarCleanup";
 
 // スタッフによる予定の追加・日程変更。replaceId を指定すると旧予約を「日程変更済」にして新予約と関連づける。
 const schema = z.object({
@@ -27,13 +28,17 @@ export async function POST(request: Request) {
   }
   const id = `appt_${d.clientId}`;
 
+  // 旧予約を先に「日程変更済」にする（同じ面談を少しずらすとき、旧予約が有効なままだと重複制約に当たるため）。
+  // booked のものだけ対象にするので、同じ送信の再処理でも二重に更新しない。
+  let oldBooked: { kind: unknown; google_event_id: unknown } | null = null;
   if (d.replaceId) {
-    // 同じ送信の再処理で旧予約を二重に更新しないよう、booked のものだけ対象にする
-    await supabaseAdmin
+    const { data: old } = await supabaseAdmin
       .from("schedule_appointments")
       .update({ status: "rescheduled", updated_at: new Date().toISOString() })
       .eq("id", d.replaceId)
-      .eq("status", "booked");
+      .eq("status", "booked")
+      .select("kind, google_event_id");
+    oldBooked = old?.[0] ?? null;
   }
   const { error } = await supabaseAdmin.from("schedule_appointments").upsert(
     {
@@ -51,7 +56,17 @@ export async function POST(request: Request) {
     },
     { onConflict: "id", ignoreDuplicates: true }
   );
-  if (error) return dbError(error.message);
+  if (error) {
+    // 新予約が作れなかったときは旧予約を元に戻す（旧予約だけが「変更済」で消えた状態にしない）
+    if (d.replaceId && oldBooked) {
+      await supabaseAdmin.from("schedule_appointments").update({ status: "booked" }).eq("id", d.replaceId).eq("status", "rescheduled");
+    }
+    if (error.code === "23P01") {
+      return NextResponse.json({ error: "conflict", message: "その時間には既に別の面談が入っています。" }, { status: 409 });
+    }
+    return dbError(error.message);
+  }
+  if (oldBooked) await removeCalendarEvents([oldBooked]);
   await audit("schedule_appointments", id, "insert", d.staffId, { replaceId: d.replaceId ?? null });
   return NextResponse.json({ id });
 }

@@ -95,12 +95,17 @@ export async function sendApplicationConfirmationEmail(input: ConfirmationInput)
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    await resend.emails.send({
+    // Resend は失敗しても例外を投げず { error } を返すため、見ないと失敗が無言になる
+    const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL as string,
       to: input.to,
       subject: "【東進ハイスクール春日部校】ご予約内容の確認",
       text: lines.join("\n"),
     });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error("confirmation email rejected by Resend", error);
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("confirmation email failed", err);

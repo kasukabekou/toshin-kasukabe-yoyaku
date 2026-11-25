@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/adminClient";
 import { audit } from "./server";
+import { removeCalendarEvents } from "./calendarCleanup";
 
 const inList = (ids: string[]) => (ids.length ? ids : ["-"]);
 
@@ -19,6 +20,8 @@ export async function deleteStudents(ids: string[], staffId: string): Promise<{ 
   const { data: byStudent } = await supabaseAdmin.from("schedule_appointments").select("id").in("student_id", targetIds);
   const { data: byApp } = await supabaseAdmin.from("schedule_appointments").select("id").in("application_id", inList(appIds));
   const apptIds = [...new Set([...(byStudent ?? []), ...(byApp ?? [])].map((a) => a.id as string))];
+  // 削除前に、カレンダーの予定を控えておく（削除後は取れない。予定が残って面談枠をふさぎ続けるのを防ぐ）
+  const { data: events } = await supabaseAdmin.from("schedule_appointments").select("kind, google_event_id").in("id", inList(apptIds)).not("google_event_id", "is", null);
 
   // 履歴として、削除した事実（誰が・どの生徒を）を残す
   for (const s of students ?? []) {
@@ -47,6 +50,8 @@ export async function deleteStudents(ids: string[], staffId: string): Promise<{ 
     supabaseAdmin.from("schedule_test_subject_selections").delete().in("application_id", inList(appIds)),
     supabaseAdmin.from("schedule_tokens").delete().in("application_id", inList(appIds)),
     supabaseAdmin.from("schedule_applications").delete().in("id", inList(appIds)),
+    // メール取込の記録は残す（残さないと同じメールの再取込で生徒が復活する）。生徒への紐づけだけ外す。
+    supabaseAdmin.from("schedule_mail_ingests").update({ student_id: null }).in("student_id", targetIds),
     supabaseAdmin.from("schedule_students").update({ merge_candidate_of: null }).in("merge_candidate_of", targetIds),
     supabaseAdmin.from("schedule_students").delete().in("id", targetIds),
   ];
@@ -55,5 +60,6 @@ export async function deleteStudents(ids: string[], staffId: string): Promise<{ 
     const msg = await run(q);
     if (msg) return { error: msg };
   }
+  await removeCalendarEvents(events ?? []);
   return { deleted: targetIds.length };
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { audit, parseBody, updateWithVersion } from "@/lib/manage/server";
+import { removeCalendarEvents } from "@/lib/manage/calendarCleanup";
 
 // 予定担当の設定・取消。日程変更は POST /appointments（新予約を作り、旧予約は「日程変更済」で残す）。
 const schema = z.object({
@@ -22,6 +23,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (f.status) patch.status = f.status;
   const r = await updateWithVersion("schedule_appointments", id, version, patch);
   if ("error" in r) return r.error;
+  if (f.status === "cancelled") await removeCalendarEvents([r.row as { kind: unknown; google_event_id: unknown }]);
   await audit("schedule_appointments", id, "update", staffId, patch);
   return NextResponse.json({ appointment: r.row });
 }
