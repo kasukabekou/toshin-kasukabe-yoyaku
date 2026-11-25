@@ -50,7 +50,7 @@ async function handle(request: Request) {
     }
     const { newApplications, ...rest } = result;
     if (newApplications?.length) {
-      await sendSlack(`📩 新しい申込が${newApplications.length}件ありました。\n${newApplications.map((l) => `・${l}`).join("\n")}\n（募集管理画面 /staff/intake で確認できます）`);
+      await sendSlack(`📩 新しい申込が${newApplications.length}件ありました。\n${newApplications.map((l) => `・${l}`).join("\n")}`);
     }
     return NextResponse.json({ ok: true, ...rest });
   } catch (e) {
