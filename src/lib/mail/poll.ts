@@ -222,6 +222,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
     let skippedFromToshin = 0;
     let unreadable = 0;
     const newApplications: string[] = [];
+    let firstError: Error | null = null;
     for (const m of batch) {
       let note = "skipped";
       let mail: Awaited<ReturnType<typeof parseRaw>> | null = null;
@@ -234,7 +235,11 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
       }
       if (mail && isApplicationMail(mail.subject, mail.from)) {
         const r = await ingestMail(mail);
-        if (r.status === "error") throw new Error(r.message); // 確認済みにせず止め、次回再試行する
+        if (r.status === "error") {
+          // 確認済みにせず次回再試行する。ただし1通の失敗で後ろの新着まで止めないよう、残りは処理して最後に失敗として報告する。
+          firstError ??= new Error(r.message);
+          continue;
+        }
         tally.set(r.status, (tally.get(r.status) ?? 0) + 1);
         if (r.status === "registered") newApplications.push(r.label);
         note = "ingested";
@@ -244,6 +249,7 @@ export async function pollMailbox(opts: PollOptions = {}): Promise<PollSummary |
       }
       await supabaseAdmin.from("schedule_mail_pop_seen").upsert({ uid: m.uid, note }, { onConflict: "uid", ignoreDuplicates: true });
     }
+    if (firstError) throw firstError;
     return {
       checked: batch.length,
       ingested: [...tally].map(([status, count]) => ({ status, count })),
