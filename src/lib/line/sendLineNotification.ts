@@ -43,6 +43,7 @@ export async function sendLineNotification(input: LineNotificationInput): Promis
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
       },
+      signal: AbortSignal.timeout(5000), // LINEが無応答でも申込者への完了応答を止めない
       body: JSON.stringify({
         to: process.env.LINE_TARGET_ID,
         messages: [{ type: "text", text: lines.join("\n") }],
